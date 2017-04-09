@@ -66,6 +66,7 @@ class CCSD_Calculator(object):
         print("Emp2=", MP2-scf)
         print("Etot=", MP2)
         
+        
         maxsize = 7 # number of t1 and t2 to store
         maxiter = 40 #max iterations incase it crashes
         E_min = 1e-15 # minimum energy to match
@@ -80,7 +81,7 @@ class CCSD_Calculator(object):
         mol.print_T_amp(t1, t2)
         
         psi4.driver.p4util.compare_values(psi4.energy('CCSD'), CCSD_E+scf, 10, 'CCSD Energy')
-
+        mol.Test_T1_rhs(t1, t2, F)
 ############################################## 
 #
 #
@@ -118,12 +119,12 @@ class CCSD_Calculator(object):
         t0 = 0.0 #the start time
         tf = 200.2 #the stop time, the actual stop time is governed by the timelength of the job
                      #Unless it completes enough steps to get to tf first. 
-        dt = 0.0005 #time step
+        dt = 0.0002 #time step
         precs = 9 #precision of the t1, t2, l1, l2 amplitudes
         ####4th-order Rosenbrock "Parallel exponential Rosenbrock methods, 
         #Vu Thai Luana, Alexander Ostermannb"
         #mol.Rosenbrock(F, t1, t2, lam1, lam2, w0, A, t0, tf, dt, timeout, precs)   
         ######4th-order Runge-Kutta   
-        mol.Runge_Kutta_solver(F, t1, t2, lam1, lam2, w0, A, t0, tf, dt, timeout, precs)      
+        #mol.Runge_Kutta_solver(F, t1, t2, lam1, lam2, w0, A, t0, tf, dt, timeout, precs)      
 
 

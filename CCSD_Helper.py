@@ -1,4 +1,4 @@
-# #################################################################
+################################################################
 #
 #
 #                            Created by: Rachel Glenn
@@ -21,6 +21,7 @@ import psi4 as psi4
 sys.path.append(os.environ['HOME']+'/miniconda2/lib/python2.7/site-packages')
 from opt_einsum import contract
 import time
+import csv
 
 class CCSD_Helper(object):
     
@@ -161,7 +162,7 @@ class CCSD_Helper(object):
         term1 = F[o, o].copy()
         term2 =0.5*contract('me,ie->mi', F[o, v], t1)
         term3 = contract('mnie,ne->mi', TEI[o, o, o, v], t1)
-        tau = t2 + contract('ia,jb->ijab', t1, t1) 
+        tau = t2 + contract('ia,jb->ijab', t1, t1)
         term4 = 0.5*contract('mnef,inef->mi', TEI[o, o, v, v], tau)
         total = term1 + term2 + term3 + term4 
         return total
@@ -177,6 +178,159 @@ class CCSD_Helper(object):
         return total
 
 ##################Build T1 equation######################
+    def Test_T1_rhs(self, t1, t2, F):
+        #fae = self.Fae(t1, t2, F)
+        v = self.vir
+        o = self.occ
+        TEI = self.TEI
+        
+        # Setup the t1, t2, and F #
+        dipolexyz = self.Defd_dipole()
+        t1 = t1 + 0.5*1j*t1
+        t2 = t2 + 0.5*1j*t2 
+        Fa =  F + dipolexyz[2] + 1j*dipolexyz[2]
+        
+        #check tau
+        tau = t2 + contract('ia,jb->ijab', t1, t1) - contract('ib,ja->ijab', t1, t1)
+        #print("This is Tau")
+        #self.print_2(tau.real)
+        #check taut
+        taut = t2 + 0.5*contract('ia,jb->ijab', t1, t1)
+        
+        #check FME
+        FME = self.Fme(t1, t2, Fa)    
+
+        #check FAE
+        FAE = self.Fae(t1, t2, Fa)
+        #self.print_2(FAE.real)
+
+        #check FMI
+        FMI = self.Fmi(t1, t2, Fa)
+        #self.print_2(FMI.real)
+        ############check T1 equation##########
+        term1 = Fa[o, v].copy()
+        term2 = contract('ae,ie->ia', FAE, t1)
+        term3 = -contract('mi,ma->ia', FMI, t1)
+        term4 = contract('me,imae->ia', FME, t2)
+        extra1 = -contract('naif,nf->ia', TEI[o, v, o, v], t1)
+        extra2 = -0.5*contract('nmei,mnae->ia', TEI[o, o, v, o], t2) 
+        extra3 = -0.5*contract('maef,imef->ia', TEI[o, v, v, v], t2)
+        t1_rhs = term1 + term2 + term3 + term4 + extra1 + extra3 + extra2
+        #self.print_2(total.imag)
+        
+        ########check T2 equation###########
+        #check DT2
+        term1 = TEI[o, o, v, v].copy()
+        
+        #check T2Fae_build
+        term2tmp = FAE - 0.5 *contract('me,mb->be', FME, t1)
+        
+        #check FAE_T2_build
+        term2a = contract('be,ijae->ijab', term2tmp, t2) 
+        term2 = term2a - term2a.swapaxes(2, 3) #swap ab
+        
+        #check T2FMI_build
+        term3temp = FMI + 0.5 *contract('me,je->mj', FME, t1)
+        
+        #check FMI_T2_build
+        term3a = -contract('mj,imab->ijab', term3temp, t2) 
+        term3 = term3a - term3a.swapaxes(0, 1) #swap ij
+        t2_rhs = term1 + term2 + term3  
+        
+        #check Wmnij
+        term1 = TEI[o, o, o, o].copy()
+        term2a = contract('mnie,je->mnij', TEI[o, o, o, v], t1)
+        term2 = term2a - term2a.swapaxes(2,3) #swap ij
+        tau = 0.5*t2 + 0.5*contract('ia,jb->ijab', t1, t1) - 0.5*contract('ib,ja->ijab', t1, t1)
+        term3 = contract('mnef,ijef->mnij', TEI[o, o, v, v], tau)  
+        Wmnij = term1 + term2 + term3
+        
+        tau = 0.5*t2 + 0.5*contract('ia,jb->ijab', t1, t1) - 0.5*contract('ib,ja->ijab', t1, t1)
+        term3 = contract('mnef,ijef->mnij', TEI[o, o, v, v], tau)
+        Wmnij_2 = term1 + term2 + term3
+        t1t1 =  0.5*contract('ia,jb->ijab', t1, t1) - 0.5*contract('ib,ja->ijab', t1, t1)
+       
+        #check Wmnij*tau
+        temp = 0.5*contract('mnij,mnab->ijab', Wmnij, t2)
+        temp += contract('mnij,mnab->ijab', Wmnij, t1t1)
+        t2_rhs += temp
+    
+ 
+        #check P(ij)P(ab) tma tie <mb||je> [R] [R]
+        term6tmp = contract('mbej,ie,ma->ijab', TEI[o, v, v, o], t1, t1)
+        term6tmp = term6tmp +  contract('maei,je,mb->ijab', TEI[o, v, v, o], t1, t1)
+        term6tmp = term6tmp - contract('maej,ie,mb->ijab', TEI[o, v, v, o], t1, t1)
+        term6tmp = term6tmp - contract('mbei,je,ma->ijab', TEI[o, v, v, o], t1, t1)
+        t2_rhs -= term6tmp
+
+        #check the other extra terms
+        term7tmp = contract('abej,ie->ijab', TEI[v ,v, v, o], t1) 
+        term7 =  term7tmp - term7tmp.swapaxes(0, 1) #swap ij 
+                             
+        term8 = -contract('mbij,ma->ijab', TEI[o, v, o, o], t1) 
+        term8 += -contract('amij,mb->ijab', TEI[v, o, o, o], t1) #swap ab
+        #print("before Wabef real")
+ 
+        t2_rhs += term7 + term8 
+        #self.print_2(t2_rhs.real)
+        #print("before Wabef imag")
+        #self.print_2(t2_rhs.imag)
+        ####Every entry matches between the python and C++ plugin up to this point##
+        
+        #Check Wabef
+        term1 = TEI[v, v, v, v].copy()            
+
+        t1t1 =  contract('ia,jb->ijab', t1, t1) - contract('ib,ja->ijab', t1, t1)
+        tau = t2 + t1t1
+        #t2_rhs = 0.5*contract('abef,ijef->ijab', term1, tau)
+        #print("First term")
+        #self.print_2(t2_rhs.real)
+
+        term2tmp= -contract('amef,mb->abef', TEI[v, o, v, v], t1) 
+        term2 = term2tmp - term2tmp.swapaxes(0,1) #swap ab
+        Wabef = term1 + term2
+        t2_rhs += 0.5*contract('abef,ijef->ijab', Wabef, tau)
+        
+        #print("Wabef real")
+        #self.print_2(t2_rhs.real)
+        #print("Wabef imag")
+        #self.print_2(term2.imag)
+        
+#       tau = contract('ia,jb->ijab', t1, t1) #- contract('ib,ja->ijab', t1, t1) 
+#       term3 = 0.25*contract('mnef,mnab->abef', TEI[o, o, v, v], t2)
+#       term4a = 0.5*contract('mnef,mnab->abef', TEI[o, o, v, v], tau)
+#       term4 = term4a - term4a.swapaxes(0,1)
+ 
+        #print("This is before wmbej")
+        #self.print_2(t2_rhs.imag)
+
+        #check Wmbej
+        term1 = TEI[o, v, v, o].copy()
+        #print("This is ovvo")
+        #self.print_2(TEI[o, v, v, o].copy())
+        #print("This is oovv")
+        #self.print_2(TEI[o, o, v, v].copy())
+        #print("This is t2")
+        #self.print_2(t2.real)
+        term2 = -contract('mnej,nb->mbej', TEI[o, o, v, o], t1)
+        t2t1 = 0.5*t2 + contract('jf,nb->jnfb', t1, t1) 
+        term34 = -contract('mnef,jnfb->mbej', TEI[o, o, v, v], t2t1)
+        term5 = contract('mbef,jf->mbej', TEI[o, v, v, v], t1)
+        wmbej = term1 + term2 + term34 + term5 
+        term6tmp = contract('mbej,imae->ijab', wmbej, t2)
+        term6tmp = term6tmp 
+        term6 =  term6tmp - term6tmp.swapaxes(2, 3)  - term6tmp.swapaxes(0, 1)  + term6tmp.swapaxes(0, 1).swapaxes(2, 3)
+
+        print("This is wmbej real")
+        self.print_2(term6.real)
+        print("This is wmbej imag")
+        self.print_2(term6.imag)
+        
+####################################################################
+#
+#
+#
+#####################################################
     def T1eq_rhs(self, t1, t2, F):        
         #All terms in the T1 Equation
         v = self.vir
@@ -206,13 +360,14 @@ class CCSD_Helper(object):
         term1 = TEI[o, o, o, o].copy()
         term2a = contract('mnie,je->mnij', TEI[o, o, o, v], t1)
         term2 = term2a - term2a.swapaxes(2,3) #swap ij
-        tau = contract('ia,jb->ijab', t1, t1) 
-        term3 = 0.25*contract('mnef,ijef->mnij', TEI[o, o, v, v], t2)
-        term4a = 0.5*contract('mnef,ijef->mnij', TEI[o, o, v, v], tau)  
-        term4 = term4a - term4a.swapaxes(2,3)
-        #tau = t2 + contract('ia,jb->ijab', t1, t1) + contract('ib,ja->ijab', t1, t1) 
-        #term3 = 0.25*contract('mnef,ijef->mnij', TEI[o, o, v, v], tau)
-        total = term1 + term2 + term3 + term4
+        #tau = contract('ia,jb->ijab', t1, t1) 
+        #term3 = 0.25*contract('mnef,ijef->mnij', TEI[o, o, v, v], t2)
+        #term4a = 0.5*contract('mnef,ijef->mnij', TEI[o, o, v, v], tau)  
+        #term4 = term4a - term4a.swapaxes(2,3)
+        
+        tau = 0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1) - 0.5*contract('ib,ja->ijab', t1, t1) 
+        term3 = contract('mnef,ijef->mnij', TEI[o, o, v, v], tau)
+        total = term1 + term2 + term3 
         return total    
      
     #Build Woooo for t1 * t1 like terms       
@@ -809,25 +964,42 @@ class CCSD_Helper(object):
             print("Lambda1 energy =", E1)
             print("Lambda2 energy =", E2)
             return CCSD_E, lam1, lam2
- 
+
+    def print_2(self, t1):
+        #print("\n   The test function values:")
+        #for i in range(F.shape[0]):
+        #    for a in range(F.shape[1]):
+        #        print i,"\t",  a, "\t", F[i][a]
+        t1_tmp = t1.ravel()
+        #sort_t1 = sorted(t1_tmp, key=lambda v: -v if v <0 else v, reverse=True) 
+        sort_t1 = sorted(t1_tmp, reverse=True)
+        for x in range(len(sort_t1)-1):
+            
+            if (round(sort_t1[x], 7) ==0e7 or round(sort_t1[x+1], 10) == round(sort_t1[x],10)):
+                 
+                pass
+            else:
+                print '\t', ('% 5.10f' %  sort_t1[x])
+        print '\t', ('% 5.10f' %  sort_t1[-1])
+
     def print_T_amp(self, t1, t2):
         sort_t1 = sorted(t1.ravel())
         sort_t2 = sorted(t2.ravel())
 
         print("\n   The largest T1 values:")
         for x in range(len(sort_t1)):
-            if (round(sort_t1[x], 5) ==0e5 or x % 2 or x >30):
+            if (round(sort_t1[x], 5) ==0e5 or x % 2 or 30< x < 60 ):
                 pass
             else: 
-                print('\t', ('% 5.13f' %  sort_t1[x]))
-        
+                print('\t', ('% 5.10f' %  sort_t1[x]))
+       
         print("\n   The largest T2 values are:")
 
         for x in range(len(sort_t2)):
             if (round(sort_t2[x],2) ==0.00 or x % 2 or x > 20):
                 pass
             else:
-                print('\t', ('% 5.13f' %  sort_t2[x]))  
+                print('\t', ('% 5.10f' %  sort_t2[x]))  
                 
     def print_L_amp(self, lam1, lam2):
         sort_lam1 = sorted(-abs(lam1.ravel()))
@@ -838,14 +1010,14 @@ class CCSD_Helper(object):
             if (round(sort_lam1[x], 5) ==0e5 or x % 2 or x >20):
                 pass
             else: 
-                print('\t', ('% 5.13f' %  sort_lam1[x]))
+                print('\t', ('% 5.10f' %  sort_lam1[x]))
         
         print("\n   The largest lam2 values are:")
         for x in range(len(sort_lam2)):
             if (round(sort_lam2[x],2) ==0.00 or x % 2 or x > 20):
                 pass
             else:
-                print('\t', ('% 5.13f' %  sort_lam2[x]))   
+                print('\t', ('% 5.10f' %  sort_lam2[x]))   
                 
                   
  ##################################################################
@@ -996,8 +1168,30 @@ class CCSD_Helper(object):
         save_dat.loc[1] = [w0, A, t, dt, precs, i, a]
         save_dat.to_csv('Parameters.csv',float_format='%.10f')
         
-                   
-    def Save_data(self, F, t1, t2, lam1, lam2, data, timing, restart):
+    def write_2data(self, F, FileName, precs):
+        with open(FileName, 'w') as outcsv:
+        #configure writer to write standard csv file
+            writer = csv.writer(outcsv, delimiter='\t', quotechar='|', quoting=csv.QUOTE_MINIMAL, lineterminator='\n')
+            for i in range(F.shape[0]):
+                for a in range(F.shape[1]):
+                #Write item to outcsv
+                    writer.writerow([i, a, np.around(F[i][a], decimals=precs) ])
+
+    def write_4data(self, F, FileName, precs):
+        with open(FileName, 'w') as outcsv:
+        #configure writer to write standard csv file
+            writer = csv.writer(outcsv, delimiter='\t', quotechar='|', quoting=csv.QUOTE_MINIMAL, lineterminator='\n')
+            for i in range(F.shape[0]):
+                for j in range(F.shape[1]):
+                    for a in range(F.shape[2]):
+                        for b in range(F.shape[3]):
+                        #Write item to outcsv
+                            writer.writerow([i, j, a, b, np.around(F[i][j][a][b], decimals=precs) ])
+
+
+
+
+    def Save_data(self, F, t1, t2, lam1, lam2, data, timing, precs, restart):
         if restart is None: 
             data.to_csv('H2O.csv')
             timing.to_csv('timing.csv')
@@ -1011,15 +1205,27 @@ class CCSD_Helper(object):
         #np.savetxt('t2.dat', t2.flatten(), fmt='%.10e%+.10ej ')
         #np.savetxt('lam1.dat', lam1, fmt='%.10e%+.10ej '*lam1.shape[1])
         #np.savetxt('lam2.dat', lam2.flatten(), fmt='%.10e%+.10ej ')
-        np.savetxt('F.dat', F, fmt='%.10e '*F.shape[1])
-        np.savetxt('t1_real.dat', t1.real.flatten(), fmt='%.10f')
-        np.savetxt('t1_imag.dat', t1.imag.flatten(), fmt='%.10f')
-        np.savetxt('t2_real.dat', t2.real.flatten(), fmt='%.10f')
-        np.savetxt('t2_imag.dat', t2.imag.flatten(), fmt='%.10f')
-        np.savetxt('lam1_real.dat', lam1.real.flatten(), fmt='%.10f')
-        np.savetxt('lam1_imag.dat', lam1.imag.flatten(), fmt='%.10f')
-        np.savetxt('lam2_real.dat', lam2.real.flatten(), fmt='%.10f')
-        np.savetxt('lam2_imag.dat', lam2.imag.flatten(), fmt='%.10f')
+        ##############save the data values plus the indices##################
+        self.write_2data(F.real, 'F_real.dat', precs)
+        self.write_2data(F.imag, 'F_imag.dat', precs)
+        self.write_2data(t1.real, 't1_real.dat', precs)
+        self.write_2data(t1.imag, 't1_imag.dat', precs)
+        self.write_4data(t2.real, 't2_real.dat', precs)
+        self.write_4data(t2.imag, 't2_imag.dat', precs)
+        self.write_2data(lam1.real, 'lam1_real.dat', precs)
+        self.write_2data(lam1.imag, 'lam1_imag.dat', precs)
+        self.write_4data(lam2.real, 'lam2_real.dat', precs)
+        self.write_4data(lam2.imag, 'lam2_imag.dat', precs)
+                ######save just the data values##############
+        #np.savetxt('F.dat', F, fmt='%.10e '*F.shape[1])
+        #np.savetxt('t1_real.dat', t1.real.flatten(), fmt='%.10f')
+        #np.savetxt('t1_imag.dat', t1.imag.flatten(), fmt='%.10f')
+        #np.savetxt('t2_real.dat', t2.real.flatten(), fmt='%.10f')
+        #np.savetxt('t2_imag.dat', t2.imag.flatten(), fmt='%.10f')
+        #np.savetxt('lam1_real.dat', lam1.real.flatten(), fmt='%.10f')
+        #np.savetxt('lam1_imag.dat', lam1.imag.flatten(), fmt='%.10f')
+        #np.savetxt('lam2_real.dat', lam2.real.flatten(), fmt='%.10f')
+        #np.savetxt('lam2_imag.dat', lam2.imag.flatten(), fmt='%.10f')
 
 
 
@@ -1306,7 +1512,7 @@ class CCSD_Helper(object):
             
             if abs(stop)>0.9*timeout*60.0:
                 print('The file timed out just before',0.9*timeout*60.0, 'sec')
-                self.Save_data(F, t1, t2, lam1, lam2, data, timing, restart)
+                self.Save_data(F, t1, t2, lam1, lam2, data, timing, precs, restart)
                 self.Save_parameters(w0, A, t0, t, dt, precs, t1.shape[0], t1.shape[1])
                 
                 break
@@ -1317,7 +1523,7 @@ class CCSD_Helper(object):
             
             if abs(mua[2].imag) > 100:
                 print('The dipole was greater than 100, UNSTABLE, file timed out at approx.',0.9*timeout*60.0, 'sec')
-                self.Save_data(F, t1, t2, lam1, lam2, data, timing, restart)
+                self.Save_data(F, t1, t2, lam1, lam2, data, timing, precs, restart)
                 self.Save_parameters(w0, A, t0, t, dt, precs, t1.shape[0], t1.shape[1])
                 break
 
@@ -1325,7 +1531,7 @@ class CCSD_Helper(object):
         print("total time non-adapative step:", stop-start)
         print("total steps:", i)
         print("step-time:", (stop-start)/i)
-        self.Save_data(F, t1, t2, lam1, lam2, data, timing, restart)
+        self.Save_data(F, t1, t2, lam1, lam2, data, timing, precs, restart)
         self.Save_parameters(w0, A, t0, t, dt, precs,  t1.shape[0], t1.shape[1])
                       
 
@@ -1444,15 +1650,16 @@ class CCSD_Helper(object):
             if abs(stop)>0.9*timeout*60.0:
                 
                 #self.Save_data(F, t1, t2, lam1, lam2, data, timing, restart)
-                self.Save_data(F, t1min, t2min, L1min, L2min, data, timing, restart)
+                self.Save_data(F, t1min, t2min, L1min, L2min, data, timing, precs, restart)
                 self.Save_parameters(w0, A, t0, t-dt, dt, precs, t1.shape[0], t1.shape[1])
+    
                 break
             #Calculate the dipole moment using the density matrix
 
             
             if abs(mua[2].real) > 100:
                 #self.Save_data(F, t1, t2, lam1, lam2, data, timing, restart)
-                self.Save_data(F, t1min, t2min, L1min, L2min, data, timing, restart)
+                self.Save_data(F, t1min, t2min, L1min, L2min, data, timing, precs, restart)
                 self.Save_parameters(w0, A, t0, t-dt, dt, precs, t1.shape[0], t1.shape[1])
                 break
             
