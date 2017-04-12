@@ -80,8 +80,7 @@ class CCSD_Calculator(object):
         print("difference between psi4 and me=", psienergy.real - (CCSD_E + scf))
         mol.print_T_amp(t1, t2)
         
-        psi4.driver.p4util.compare_values(psi4.energy('CCSD'), CCSD_E+scf, 10, 'CCSD Energy')
-        mol.Test_T1_rhs(t1, t2, F)
+        psi4.driver.p4util.compare_values(psi4.energy('CCSD'), CCSD_E+scf, 12, 'CCSD Energy')
 ############################################## 
 #
 #
@@ -105,6 +104,7 @@ class CCSD_Calculator(object):
         mol.print_L_amp(lam1, lam2)
 
 
+        mol.Test_T1_rhs(t1, t2, lam1, lam2, F)
  ############################################## 
 #
 #
