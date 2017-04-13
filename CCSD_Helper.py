@@ -57,11 +57,11 @@ class CCSD_Helper(object):
         #MO energies
         self.eps = np.asarray(self.wfn.epsilon_a()).repeat(2, axis=0)
         #self.TEI_MO = np.asarray(self.mints.mo_spin_eri(self.C, self.C))
-        self.TEI = self.TEI_MO().astype(np.complex)
+        self.TEI = self.TEI_MO()
 ###############Setup the Fock matrix and TEIs #####################
     def TEI_MO(self, C=None):
         if C is None: C = self.C
-        return np.asarray(self.mints.mo_spin_eri(C, C), dtype=complex)
+        return np.asarray(self.mints.mo_spin_eri(C, C))
         
 
 
@@ -84,7 +84,7 @@ class CCSD_Helper(object):
             
         S12 = contract('il,lk,jk->ij', evecs, Ls, evecs)
         S12plus = contract('il,lk,jk->ij', evecs, Lsplus, evecs)        
-        return S12.astype(np.complex), S12plus.astype(np.complex)
+        return S12, S12plus
         
         
     def F_MO(self, H=None, C=None):
@@ -98,14 +98,14 @@ class CCSD_Helper(object):
         H = H.repeat(2, axis=1).repeat(2, axis=0)
         H = H*np.tile(np.identity(2),(nmo,nmo))
         F= H + contract('pmqm->pq', TEI[:, occ, :, occ])
-        return F.astype(np.complex)
+        return F
         
     def MO_E(self, H=None, C=None):  
         if H is None: H = self.H
         if C is None: C = self.C 
         F = self.F_MO(H,C)
         evals, evecs = np.linalg.eigh(F)
-        return evals.astype(np.complex)
+        return evals
     
     def MP2_E(self, alpha, H=None, C=None):  
         #alpha is a text variable to select the output
@@ -145,33 +145,37 @@ class CCSD_Helper(object):
         v = self.vir
         o = self.occ
         TEI = self.TEI
-        Fae  = F[v, v].copy()
-        Fae += - 0.5*contract('me,ma->ae', F[o, v], t1)
-        Fae += contract('mafe,mf->ae', TEI[o, v, v, v], t1)
+        term1 = F[v, v].copy()
+
+        term2 = - 0.5*contract('me,ma->ae', F[o, v], t1)
+        term3 = contract('mafe,mf->ae', TEI[o, v, v, v], t1)
         tau = t2 + contract('ia,jb->ijab', t1, t1) 
-        Fae +=-0.5*contract('mnef,mnaf->ae', TEI[o, o, v, v], tau)
-        return Fae
+        term4 =-0.5*contract('mnef,mnaf->ae', TEI[o, o, v, v], tau)
+        total = term1 + term2 + term3 + term4
+        return total
     
     #Build Foo
     def Fmi(self, t1, t2, F):
         v = self.vir
         o = self.occ  
         TEI = self.TEI 
-        Fmi = F[o, o].copy()
-        Fmi +=0.5*contract('me,ie->mi', F[o, v], t1)
-        Fmi += contract('mnie,ne->mi', TEI[o, o, o, v], t1)
+        term1 = F[o, o].copy()
+        term2 =0.5*contract('me,ie->mi', F[o, v], t1)
+        term3 = contract('mnie,ne->mi', TEI[o, o, o, v], t1)
         tau = t2 + contract('ia,jb->ijab', t1, t1)
-        Fmi += 0.5*contract('mnef,inef->mi', TEI[o, o, v, v], tau)
-        return Fmi
+        term4 = 0.5*contract('mnef,inef->mi', TEI[o, o, v, v], tau)
+        total = term1 + term2 + term3 + term4 
+        return total
     
     #Build Fov    
     def Fme(self, t1, t2, F):
         v = self.vir
         o = self.occ
         TEI = self.TEI
-        Fme = F[o, v].copy()
-        Fme += contract('mnef,nf->me', TEI[o, o, v, v], t1)
-        return Fme
+        term1 = F[o, v].copy()
+        term2 = contract('mnef,nf->me', TEI[o, o, v, v], t1)
+        total = term1 + term2
+        return total
 
 ##################Build T1 equation######################
     def Test_T1_rhs(self, t1, t2, lam1, lam2, F):
@@ -188,88 +192,117 @@ class CCSD_Helper(object):
         
         #check tau
         tau = t2 + contract('ia,jb->ijab', t1, t1) - contract('ib,ja->ijab', t1, t1)
-        
+        #print("This is Tau")
+        #self.print_2(tau.real)
         #check taut
         taut = t2 + 0.5*contract('ia,jb->ijab', t1, t1)
-
+        
         #check FME
         FME = self.Fme(t1, t2, Fa)    
 
         #check FAE
         FAE = self.Fae(t1, t2, Fa)
+        #self.print_2(FAE.real)
 
         #check FMI
         FMI = self.Fmi(t1, t2, Fa)
+        #self.print_2(FMI.real)
         ############check T1 equation##########
-        t1_rhs = Fa[o, v].copy()
-        t1_rhs += contract('ae,ie->ia', FAE, t1)
-        t1_rhs += -contract('mi,ma->ia', FMI, t1)
-        t1_rhs += contract('me,imae->ia', FME, t2)
-        t1_rhs += -contract('naif,nf->ia', TEI[o, v, o, v], t1)
-        t1_rhs += -0.5*contract('nmei,mnae->ia', TEI[o, o, v, o], t2) 
-        t1_rhs += -0.5*contract('maef,imef->ia', TEI[o, v, v, v], t2)
-
+        term1 = Fa[o, v].copy()
+        term2 = contract('ae,ie->ia', FAE, t1)
+        term3 = -contract('mi,ma->ia', FMI, t1)
+        term4 = contract('me,imae->ia', FME, t2)
+        extra1 = -contract('naif,nf->ia', TEI[o, v, o, v], t1)
+        extra2 = -0.5*contract('nmei,mnae->ia', TEI[o, o, v, o], t2) 
+        extra3 = -0.5*contract('maef,imef->ia', TEI[o, v, v, v], t2)
+        t1_rhs = term1 + term2 + term3 + term4 + extra1 + extra3 + extra2
+        #self.print_2(total.imag)
+        
         ########check T2 equation###########
         #check DT2
-        t2_rhs = TEI[o, o, v, v].copy()
+        term1 = TEI[o, o, v, v].copy()
         
         #check T2Fae_build
         term2tmp = FAE - 0.5 *contract('me,mb->be', FME, t1)
         
         #check FAE_T2_build
-        term2a = contract('be,ijae->ijab', term2tmp, t2)
-        term2a = term2a.astype(np.complex)
-        t2_rhs = t2_rhs.astype(np.complex)
-        print type(t2_rhs)
-        print type(term2a)
-        t2_rhs += term2a - term2a.swapaxes(2, 3) #swap ab
-        del term2tmp, term2a
-
+        term2a = contract('be,ijae->ijab', term2tmp, t2) 
+        term2 = term2a - term2a.swapaxes(2, 3) #swap ab
+        
         #check T2FMI_build
         term3temp = FMI + 0.5 *contract('me,je->mj', FME, t1)
         
         #check FMI_T2_build
         term3a = -contract('mj,imab->ijab', term3temp, t2) 
-        t2_rhs += term3a - term3a.swapaxes(0, 1) #swap ij
+        term3 = term3a - term3a.swapaxes(0, 1) #swap ij
+        t2_rhs = term1 + term2 + term3  
         
         #check Wmnij
-        Wmnij = TEI[o, o, o, o].copy()
+        term1 = TEI[o, o, o, o].copy()
         term2a = contract('mnie,je->mnij', TEI[o, o, o, v], t1)
-        Wmnij += term2a - term2a.swapaxes(2,3) #swap ij
+        term2 = term2a - term2a.swapaxes(2,3) #swap ij
         tau = 0.5*t2 + 0.5*contract('ia,jb->ijab', t1, t1) - 0.5*contract('ib,ja->ijab', t1, t1)
-        Wmnij += contract('mnef,ijef->mnij', TEI[o, o, v, v], tau)  
+        term3 = contract('mnef,ijef->mnij', TEI[o, o, v, v], tau)  
+        Wmnij = term1 + term2 + term3
         
+        tau = 0.5*t2 + 0.5*contract('ia,jb->ijab', t1, t1) - 0.5*contract('ib,ja->ijab', t1, t1)
+        term3 = contract('mnef,ijef->mnij', TEI[o, o, v, v], tau)
+        Wmnij_2 = term1 + term2 + term3
+        t1t1 =  0.5*contract('ia,jb->ijab', t1, t1) - 0.5*contract('ib,ja->ijab', t1, t1)
+       
         #check Wmnij*tau
-        t2_rhs += 0.5*contract('mnij,mnab->ijab', Wmnij, tau)
-        del Wmnij
-
-
+        temp = 0.5*contract('mnij,mnab->ijab', Wmnij, t2)
+        temp += contract('mnij,mnab->ijab', Wmnij, t1t1)
+        t2_rhs += temp
+    
+ 
         #check P(ij)P(ab) tma tie <mb||je> [R] [R]
         term6tmp = contract('mbej,ie,ma->ijab', TEI[o, v, v, o], t1, t1)
         term6tmp = term6tmp +  contract('maei,je,mb->ijab', TEI[o, v, v, o], t1, t1)
         term6tmp = term6tmp - contract('maej,ie,mb->ijab', TEI[o, v, v, o], t1, t1)
         term6tmp = term6tmp - contract('mbei,je,ma->ijab', TEI[o, v, v, o], t1, t1)
         t2_rhs -= term6tmp
-        del term6tmp
 
         #check the other extra terms
         term7tmp = contract('abej,ie->ijab', TEI[v ,v, v, o], t1) 
-        t2_rhs +=  term7tmp - term7tmp.swapaxes(0, 1) #swap ij 
-        del term7tmp
-
+        term7 =  term7tmp - term7tmp.swapaxes(0, 1) #swap ij 
+                             
         term8 = -contract('mbij,ma->ijab', TEI[o, v, o, o], t1) 
-        t2_rhs += -contract('amij,mb->ijab', TEI[v, o, o, o], t1) #swap ab
+        term8 += -contract('amij,mb->ijab', TEI[v, o, o, o], t1) #swap ab
+        #print("before Wabef real")
  
+        t2_rhs += term7 + term8 
+        #self.print_2(t2_rhs.real)
+        #print("before Wabef imag")
+        #self.print_2(t2_rhs.imag)
+        ####Every entry matches between the python and C++ plugin up to this point##
         
         #Check Wabef
-        Wabef = TEI[v, v, v, v].copy()            
+        term1 = TEI[v, v, v, v].copy()            
 
-        tau = t2 +  contract('ia,jb->ijab', t1, t1) - contract('ib,ja->ijab', t1, t1)
+        t1t1 =  contract('ia,jb->ijab', t1, t1) - contract('ib,ja->ijab', t1, t1)
+        tau = t2 + t1t1
+        #t2_rhs = 0.5*contract('abef,ijef->ijab', term1, tau)
+        #print("First term")
+        #self.print_2(t2_rhs.real)
+
         term2tmp= -contract('amef,mb->abef', TEI[v, o, v, v], t1) 
-        Wabef += term2tmp - term2tmp.swapaxes(0,1) #swap ab
-        del term2tmp
+        term2 = term2tmp - term2tmp.swapaxes(0,1) #swap ab
+        Wabef = term1 + term2
         t2_rhs += 0.5*contract('abef,ijef->ijab', Wabef, tau)
         
+        #print("Wabef real")
+        #self.print_2(t2_rhs.real)
+        #print("Wabef imag")
+        #self.print_2(term2.imag)
+        
+#       tau = contract('ia,jb->ijab', t1, t1) #- contract('ib,ja->ijab', t1, t1) 
+#       term3 = 0.25*contract('mnef,mnab->abef', TEI[o, o, v, v], t2)
+#       term4a = 0.5*contract('mnef,mnab->abef', TEI[o, o, v, v], tau)
+#       term4 = term4a - term4a.swapaxes(0,1)
+ 
+        #print("This is before wmbej")
+        #self.print_2(t2_rhs.real)
 
         #check Wmbej
         Wmbej = TEI[o, v, v, o].copy()
@@ -279,9 +312,10 @@ class CCSD_Helper(object):
         Wmbej = contract('mbef,jf->mbej', TEI[o, v, v, v], t1)
         
         term6tmp = contract('mbej,imae->ijab', Wmbej, t2)
-        term6tmp = term6tmp 
-        t2_rhs +=  term6tmp - term6tmp.swapaxes(2, 3)  - term6tmp.swapaxes(0, 1)  + term6tmp.swapaxes(0, 1).swapaxes(2, 3)
+        t2_rhs = t2_rhs +  term6tmp - term6tmp.swapaxes(2, 3)  - term6tmp.swapaxes(0, 1)  + term6tmp.swapaxes(0, 1).swapaxes(2, 3)
 
+
+#################check lam1 eq #########################################
         #setup lam1 and lam2 to check lam1 and lam2 equations
         E_test = 2.4
         lam1 = lam1.real + 1j*t1.imag*E_test
@@ -330,8 +364,7 @@ class CCSD_Helper(object):
         print("This is Fia")
         self.print_2(Fia.real)        
         #term3 = -contract('im,ma->ia', Fim, lam1)
- 
-
+       
 ####################################################################
 #
 #
@@ -346,83 +379,99 @@ class CCSD_Helper(object):
         fmi = self.Fmi(t1, t2, F)  
         fme = self.Fme(t1, t2, F) 
               
-        t1_rhs = F[o, v].copy()
-        t1_rhs += contract('ae,ie->ia', fae, t1)
-        t1_rhs += -contract('mi,ma->ia', fmi,t1)
-        t1_rhs += contract('me,imae->ia', fme, t2)
+        term1 = F[o, v].copy()
+        term2 = contract('ae,ie->ia', fae, t1)
+        term3 = -contract('mi,ma->ia', fmi,t1)
+        term4 = contract('me,imae->ia', fme, t2)
         #extra terms   
-        t1_rhs += -contract('naif,nf->ia', TEI[o, v, o, v], t1)
-        t1_rhs += -0.5*contract('nmei,mnae->ia', TEI[o, o, v, o], t2)
-        t1_rhs += -0.5*contract('maef,imef->ia', TEI[o, v, v, v], t2)
-        return t1_rhs
+        extra1 = -contract('naif,nf->ia', TEI[o, v, o, v], t1)
+        extra2 = -0.5*contract('nmei,mnae->ia', TEI[o, o, v, o], t2)
+        extra3 = -0.5*contract('maef,imef->ia', TEI[o, v, v, v], t2)
+        
+        total = term1 + term2 + term3  + term4  + extra1  + extra2  + extra3
+        return total
      
    #Build Woooo for t2 terms 
     def Wmnij(self, t1 ,t2, F):
         v = self.vir
         o = self.occ
         TEI = self.TEI
-        Wmnij = TEI[o, o, o, o].copy()
+        term1 = TEI[o, o, o, o].copy()
         term2a = contract('mnie,je->mnij', TEI[o, o, o, v], t1)
-        Wmnij += term2a - term2a.swapaxes(2,3) #swap ij
-        del term2a
+        term2 = term2a - term2a.swapaxes(2,3) #swap ij
+        #tau = contract('ia,jb->ijab', t1, t1) 
+        #term3 = 0.25*contract('mnef,ijef->mnij', TEI[o, o, v, v], t2)
+        #term4a = 0.5*contract('mnef,ijef->mnij', TEI[o, o, v, v], tau)  
+        #term4 = term4a - term4a.swapaxes(2,3)
+        
         tau = 0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1) - 0.5*contract('ib,ja->ijab', t1, t1) 
-        Wmnij += contract('mnef,ijef->mnij', TEI[o, o, v, v], tau)
-        return Wmnij  
+        term3 = contract('mnef,ijef->mnij', TEI[o, o, v, v], tau)
+        total = term1 + term2 + term3 
+        return total    
      
     #Build Woooo for t1 * t1 like terms       
     def Wmnij_2(self, t1 ,t2, F):
         v = self.vir
         o = self.occ
         TEI = self.TEI
-        Wmnij = TEI[o, o, o, o].copy()
+        term1 = TEI[o, o, o, o].copy()
         term2a = contract('mnie,je->mnij', TEI[o, o, o, v], t1)
-        Wmnij += term2a - term2a.swapaxes(2,3) #swap ij
-        del term2a
+        term2 = term2a - term2a.swapaxes(2,3) #swap ij
         tau = contract('ia,jb->ijab', t1, t1) 
+        #term3 = 0.25*contract('mnef,ijef->mnij', TEI[o, o, v, v], t2)
         term4a = 0.25*contract('mnef,ijef->mnij', TEI[o, o, v, v], tau)  
-        Wmnij += term4a - term4a.swapaxes(2,3)
-        del term4a
-        return Wmnij
+        term4 = term4a - term4a.swapaxes(2,3)
+        #tau = contract('ia,jb->ijab', t1, t1) + contract('ib,ja->ijab', t1, t1) 
+        #term4 = 0.25*contract('mnef,ijef->mnij', TEI[o, o, v, v], tau)  
+        total = term1 + term2 + term4
+        return total 
      
     #Build Wvvvv for t2 terms                                                                                                                                                                                                                                                                     
     def Wabef(self, t1, t2, F):
         v = self.vir
         o = self.occ
         TEI = self.TEI
-        Wabef = TEI[v, v, v, v].copy()
+        term1 = TEI[v, v, v, v].copy()
         term2tmp = -contract('amef,mb->abef', TEI[v, o, v, v], t1) 
-        Wabef += term2tmp - term2tmp.swapaxes(0,1) #swap ab
+        term2 = term2tmp - term2tmp.swapaxes(0,1) #swap ab
         tau = contract('ia,jb->ijab', t1, t1) #- contract('ib,ja->ijab', t1, t1) 
-        Wabef += 0.25*contract('mnef,mnab->abef', TEI[o, o, v, v], t2)
+        term3 = 0.25*contract('mnef,mnab->abef', TEI[o, o, v, v], t2)
         term4a = 0.5*contract('mnef,mnab->abef', TEI[o, o, v, v], tau)
-        Wabef += term4a - term4a.swapaxes(0,1)
-        del term2tmp, term4a
-        return Wabef
+        term4 = term4a - term4a.swapaxes(0,1)
+        #tau = t2 + contract('ia,jb->ijab', t1, t1) - contract('ib,ja->ijab', t1, t1) 
+        #term3 = 0.5*contract('mnef,mnab->abef', TEI[o, o, v, v], tau)
+        total = term1 + term2 + term3 + term4
+        return total
 
     #Build Wvvvv for t1 * t1 like terms
     def Wabef_2(self, t1, t2, F):
         v = self.vir
         o = self.occ
         TEI = self.TEI
-        Wabef = TEI[v, v, v, v].copy()
+        term1 = TEI[v, v, v, v].copy()
         term2tmp = -contract('amef,mb->abef', TEI[v, o, v, v], t1) 
-        Wabef += term2tmp - term2tmp.swapaxes(0,1) #swap ab
+        term2 = term2tmp - term2tmp.swapaxes(0,1) #swap ab
+        #tau = contract('ia,jb->ijab', t1, t1) #- contract('ib,ja->ijab', t1, t1) 
+        ##term3 = 0.25*contract('mnef,mnab->abef', TEI[o, o, v, v], t2)
+        #term4a = 0.25*contract('mnef,mnab->abef', TEI[o, o, v, v], tau)
+        #term4 = term4a - term4a.swapaxes(0,1)
         tau = contract('ia,jb->ijab', t1, t1) - contract('ib,ja->ijab', t1, t1) 
-        Wabef += 0.25*contract('mnef,mnab->abef', TEI[o, o, v, v], tau)
-        del term2tmp
-        return Wabef
+        term4 = 0.25*contract('mnef,mnab->abef', TEI[o, o, v, v], tau)
+        total = term1 + term2 + term4
+        return total
     
     #Build Wovvo                                                                                                                                                                                                                                                                    
     def Wmbej(self, t1, t2, F):
         v = self.vir
         o = self.occ
         TEI = self.TEI
-        Wmbej = TEI[o, v, v, o].copy()
-        Wmbej += -contract('mnej,nb->mbej', TEI[o, o, v, o], t1)
-        tau = 0.5*t2 + contract('jf,nb->jnfb', t1, t1)
-        Wmbej += -contract('mnef,jnfb->mbej', TEI[o, o, v, v], tau)
-        Wmbej += contract('mbef,jf->mbej', TEI[o, v, v, v], t1)
-        return Wmbej
+        term1 = TEI[o, v, v, o].copy()
+        term2 = -contract('mnej,nb->mbej', TEI[o, o, v, o], t1)
+        t2t1 = 0.5*t2 + contract('jf,nb->jnfb', t1, t1)
+        term34 = -contract('mnef,jnfb->mbej', TEI[o, o, v, v], t2t1)
+        term5 = contract('mbef,jf->mbej', TEI[o, v, v, v], t1)
+        total = term1 + term2 + term34 + term5 
+        return total
  
 ########### Build T2 Equation################################                                                       
     def T2eq_rhs(self, t1, t2, F):
@@ -438,49 +487,47 @@ class CCSD_Helper(object):
         wabef_2 = self.Wabef_2(t1 ,t2, F)
         wmnij_2 = self.Wmnij_2(t1 ,t2, F)
         #All terms in the T2 Equation
-
-        t2_rhs = TEI[o, o, v, v].copy()
+        term1 = TEI[o, o, v, v].copy()
+        
         term2tmp = fae - 0.5 *contract('me,mb->be', fme, t1)
         term2a = contract('be,ijae->ijab', term2tmp, t2) 
-        t2_rhs += term2a - term2a.swapaxes(2, 3) #swap ab
-        del term2tmp, term2a
-
+        term2 = term2a - term2a.swapaxes(2, 3) #swap ab
+        
         term3temp = fmi + 0.5 *contract('me,je->mj', fme, t1)
         term3a = -contract('mj,imab->ijab', term3temp, t2) 
-        t2_rhs += term3a - term3a.swapaxes(0, 1) #swap ij
-        del term3temp, term3a
-
+        term3 = term3a - term3a.swapaxes(0, 1) #swap ij
+             
         tau = contract('ma,nb->mnab', t1, t1) - contract('na,mb->mnab', t1, t1)
-        t2_rhs += 0.5*contract('mnij,mnab->ijab', wmnij, t2)
-        t2_rhs += 0.5*contract('abef,ijef->ijab', wabef, t2)   
-        t2_rhs += 0.5*contract('mnij,mnab->ijab', wmnij_2, tau)
-        t2_rhs += 0.5*contract('abef,ijef->ijab', wabef_2, tau)   
+        term44 = 0.5*contract('mnij,mnab->ijab', wmnij, t2)
+        term55 = 0.5*contract('abef,ijef->ijab', wabef, t2)   
+        term44 += 0.5*contract('mnij,mnab->ijab', wmnij_2, tau) 
+        term55 +=  0.5*contract('abef,ijef->ijab', wabef_2, tau)  
  
         term6tmp = contract('mbej,imae->ijab', wmbej, t2)
-        term6a = term6tmp - contract('mbej,ie,ma->ijab', TEI[o, v, v, o], t1, t1)
-        t2_rhs +=  term6a - term6a.swapaxes(2, 3)  - term6a.swapaxes(0, 1)  + term6a.swapaxes(0, 1).swapaxes(2, 3)
-        del term6a, term6tmp
+        term6tmp = term6tmp - contract('mbej,ie,ma->ijab', TEI[o, v, v, o], t1, t1)
+        term6 =  term6tmp - term6tmp.swapaxes(2, 3)  - term6tmp.swapaxes(0, 1)  + term6tmp.swapaxes(0, 1).swapaxes(2, 3)
+
                                              
         term7tmp = contract('abej,ie->ijab', TEI[v ,v, v, o], t1) 
-        t2_rhs +=  term7tmp - term7tmp.swapaxes(0, 1) #swap ij 
-        del term7tmp
-
+        term7 =  term7tmp - term7tmp.swapaxes(0, 1) #swap ij 
+                             
         term8tmp = -contract('mbij,ma->ijab', TEI[o, v, o, o], t1) 
-        t2_rhs +=  term8tmp - term8tmp.swapaxes(2, 3) #swap ab
-        del term8tmp
-        
-        del fae, fmi, fme, wmnij, wabef, wmbej, wabef_2, wmnij_2
-        return t2_rhs
+        term8 =  term8tmp - term8tmp.swapaxes(2, 3) #swap ab
+    
+        total = term1 + term2 + term3 + term44 + term55 + term6 + term7 + term8
+        return total
     
     #Calculate the CCSD energy 
     def CCSD_Corr_E(self, t1, t2, F):
         o = self.occ
         v = self.vir
         TEI = self.TEI
-        E_corr = contract('ia,ia->',F[o, v], t1)
-        E_corr += 0.25*contract('ijab,ijab->', TEI[o, o, v, v], t2)
-        E_corr += 0.5*contract('ijab,ia,jb->', TEI[o, o, v, v], t1, t1)
-        return E_corr                           
+        term1 = contract('ia,ia->',F[o, v], t1)
+        term2 = 0.25*contract('ijab,ijab->', TEI[o, o, v, v], t2)
+        term3 = 0.5*contract('ijab,ia,jb->', TEI[o, o, v, v], t1, t1)
+        total = term1 + term2
+        total = total + term3 
+        return total                           
     
     # update the T2 iteratively
     def corrected_T2(self, t2, dt2, F):
@@ -508,20 +555,20 @@ class CCSD_Helper(object):
     #Routine for DIIS solver, builds all arrays(maxsize) before B is computed    
     def DIIS_solver(self, t1, t2, F, maxsize, maxiter, E_min):
             #Store the maxsize number of t1 and t2
-            T1rhs = self.T1eq_rhs(t1, t2, F)
-            T2rhs = self.T2eq_rhs(t1, t2, F)
-            t1 = self.corrected_T1(t1, T1rhs, F)
-            t2 = self.corrected_T2(t2, T2rhs, F)
+            T1rhs = self.T1eq_rhs(t1, t2, np.longdouble(F))
+            T2rhs = self.T2eq_rhs(t1, t2, np.longdouble(F))
+            t1 = np.longdouble(self.corrected_T1(t1, T1rhs, F))
+            t2 = np.longdouble(self.corrected_T2(t2, T2rhs, F))
             t1stored = [t1.copy()]
             t2stored = [t2.copy()]
             errort1 = []
             errort2 = []
             
             for n in range(1, maxsize+1):  
-                T1rhs = self.T1eq_rhs(t1, t2, F)
-                T2rhs = self.T2eq_rhs(t1, t2, F)
-                t1 = self.corrected_T1(t1, T1rhs, F)
-                t2 = self.corrected_T2(t2, T2rhs, F)
+                T1rhs = self.T1eq_rhs(t1, t2, np.longdouble(F))
+                T2rhs = self.T2eq_rhs(t1, t2, np.longdouble(F))
+                t1 = np.longdouble(self.corrected_T1(t1, T1rhs, F))
+                t2 = np.longdouble(self.corrected_T2(t2, T2rhs, F))
                 t1stored.append(t1.copy())
                 t2stored.append(t2.copy())
                 
@@ -537,7 +584,7 @@ class CCSD_Helper(object):
                     for m in range(maxsize):
                         a = contract('ia,ia->',errort1[m], errort1[n])
                         b = contract('ijab,ijab->', errort2[m], errort2[n])
-                        B[n, m] = a.real + b.real
+                        B[n, m] = a + b
     
                 # Build residual vector
                 A = np.zeros(maxsize + 1)
@@ -560,10 +607,10 @@ class CCSD_Helper(object):
                 if (abs(diff_E) < E_min):
                     break
                 #update t1 and t2 list
-                T1rhs = self.T1eq_rhs(t1, t2, F)
-                T2rhs = self.T2eq_rhs(t1, t2, F)
-                t1 = self.corrected_T1(t1, T1rhs, F)
-                t2 = self.corrected_T2(t2, T2rhs, F)
+                T1rhs = self.T1eq_rhs(t1, t2, np.longdouble(F))
+                T2rhs = self.T2eq_rhs(t1, t2, np.longdouble(F))
+                t1 = np.longdouble(self.corrected_T1(t1, T1rhs, F))
+                t2 = np.longdouble(self.corrected_T2(t2, T2rhs, F))
                 t1stored.append(t1.copy())
                 t2stored.append(t2.copy())
                 
@@ -582,10 +629,10 @@ class CCSD_Helper(object):
         i=0
         for x in range (maxiter):
             CCSDE_Em = self.CCSD_Corr_E(t1, t2, F)
-            T1rhs = self.T1eq_rhs(t1, t2, F)
-            T2rhs = self.T2eq_rhs(t1, t2, F)
-            t1 = self.corrected_T1(t1, T1rhs, F)
-            t2 = self.corrected_T2(t2, T2rhs, F)
+            T1rhs = self.T1eq_rhs(t1, t2, np.longdouble(F))
+            T2rhs = self.T2eq_rhs(t1, t2, np.longdouble(F))
+            t1 = np.longdouble(self.corrected_T1(t1, T1rhs, F))
+            t2 = np.longdouble(self.corrected_T2(t2, T2rhs, F))
             CCSD_E = self.CCSD_Corr_E(t1, t2, F)
             diff_E = np.abs( CCSD_E -CCSDE_Em )
             i+=1
@@ -610,76 +657,102 @@ class CCSD_Helper(object):
         v = self.vir
         o = self.occ
         TEI = self.TEI
-        LFea = F[v, v].copy()
-        LFea += - contract('ma,me->ea', F[o, v], t1)
-        LFea += contract('emaf,mf->ea', TEI[v, o, v, v], t1)
+        term1 = F[v, v].copy()
+        term2 = - contract('ma,me->ea', F[o, v], t1)
+        term3 = contract('emaf,mf->ea', TEI[v, o, v, v], t1)
         tau = 0.5*t2 + contract('ia,jb->ijab', t1, t1) 
-        LFea +=-contract('mnaf,mnef->ea', TEI[o, o, v, v], tau)
-        return LFea
+        term4 =-contract('mnaf,mnef->ea', TEI[o, o, v, v], tau)
+        total = term1 + term2 + term3 + term4
+        return total
         
     #Build Foo for L1 and L2     
     def LRFim(self, t1, t2, F):
         v = self.vir
         o = self.occ  
         TEI = self.TEI 
-        LFim = F[o, o].copy()
-        LFim += contract('ie,me->im', F[o, v], t1)
-        LFim += contract('inmf,nf->im', TEI[o, o, o, v], t1)
+        term1 = F[o, o].copy()
+        term2 = contract('ie,me->im', F[o, v], t1)
+        term3 = contract('inmf,nf->im', TEI[o, o, o, v], t1)
         tau = 0.5*t2 + contract('ia,jb->ijab', t1, t1) 
-        LFim += contract('inef,mnef->im', TEI[o, o, v, v], tau)
-        return LFim
+        term4 = contract('inef,mnef->im', TEI[o, o, v, v], tau)
+        total = term1 + term2 + term3 + term4 
+        return total
         
     #Build Wovvo          
     def LSWieam(self, t1, t2, F):
         v = self.vir
         o = self.occ
         TEI = self.TEI
-        Wieam = TEI[o, v, v, o].copy()
-        Wieam += contract('eifa,mf->ieam', TEI[v, o, v, v], t1)
-        Wieam += -contract('nima,ne->ieam', TEI[o, o, o, v], t1)
+        term1 = TEI[o, v, v, o].copy()
+        term2 = contract('eifa,mf->ieam', TEI[v, o, v, v], t1)
+        term3 = -contract('nima,ne->ieam', TEI[o, o, o, v], t1)
         tau = t2 + contract('ia,jb->ijab', t1, t1) 
         #term4 =  contract('ijab,mjeb->ieam', TEI[o, o, v, v], tau)
         #should be the same but below gives several sig figs more accurate?
-        Wieam +=  -contract('ijab,mjbe->ieam', TEI[o, o, v, v], tau)
-        return Wieam
+        term4 =  -contract('ijab,mjbe->ieam', TEI[o, o, v, v], tau)
+        total = term1 + term2 + term3 + term4 
+        ###########Stanton ############
+        #Wmbej = self.Wmbej(t1, t2, F)
+        #term1 = -0.5*contract('mnef,jnfb->mbej', TEI[o, o, v, v], t2)
+        #totals = Wmbej + term1
+        return total
             
     #Build Wvvvo    
     def LRWefam(self, t1, t2, F):
         v = self.vir
         o = self.occ
         TEI = self.TEI
+        #Build Fme-Later change to use self.Fme
+        #Fme = F[o, v].copy() + contract('njab,jb->na', TEI[o, o, v, v], t1)
         Fme = self.Fme(t1, t2, F)
+        #Build Wooo
+        
+        #term1 = 0.5*TEI[v, v, v, v].copy()
+        #term2 = -contract('jfab,je->efab', TEI[o, v, v, v], t1)
+        ##term2 = term2a + term2a.swapaxes(2,3) 
+        #tau = 0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1) # - contract('ib,ja->ijab', t1, t1)
+        #term3 =contract('jnab,jnef->efab', TEI[o, o, v, v], tau)
+        #Wabef =  term1 + term2 + term3  
         Wabef = self.LSWabef(t1, t2, F)
+        
 
-        Wefam = 0.5*TEI[v, v, v, o].copy()
-        Wefam += 0.5*contract('na,mnef->efam', Fme, t2)
-        Wefam += contract('efab,mb->efam', Wabef, t1)
+        term1 = 0.5*TEI[v, v, v, o].copy()
+        term2 = 0.5*contract('na,mnef->efam', Fme, t2)
+        term3 = contract('efab,mb->efam', Wabef, t1)
         term4a = -TEI[o, v, v, o].copy() + contract('jnab,nmfb->jfam', TEI[o, o, v, v], t2)  
-        Wefam += contract('jfam,je->efam', term4a, t1)
+        term4 = contract('jfam,je->efam', term4a, t1)
         tau =0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1) #- contract('ib,ja->ijab', t1, t1)
-        Wefam += contract('jnam,jnef->efam', TEI[o, o, v, o], tau)
-        Wefam += -contract('jfab,jmeb->efam', TEI[o, v, v, v], t2) 
-        del term4a
-        return Wefam
+        term5 = contract('jnam,jnef->efam', TEI[o, o, v, o], tau)
+        term6 = -contract('jfab,jmeb->efam', TEI[o, v, v, v], t2) 
+        total = term1 + (term2 + term3 + term4 + term5 + term6) #+ extra
+        return total
     
        #Build Wovoo                     
     def LRWibjm(self, t1, t2, F):
         v = self.vir
         o = self.occ
         TEI = self.TEI
+        #Build Fme -Later change to use self.Fme
+        #Fme = F[o, v].copy() + contract('inef,nf->ie', TEI[o, o, v, v], t1)
         Fme = self.Fme(t1, t2, F)
+        #Build Wmnij
+        #term1 = 0.5*TEI[o, o, o, o].copy()
+        #term2 = contract('inem,je->injm', TEI[o, o, v, o], t1) 
+        #tau = 0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1) #- contract('ib,ja->ijab', t1, t1)
+        #term3 = contract('inef,jmef->injm', TEI[o, o, v, v], tau)
+        #Wmnij = term1 + term2 + term3 
         Wmnij = self.LSWmnij(t1, t2, F)
         
-        Wibjm = -0.5*TEI[o, v, o, o].copy()
-        Wibjm += 0.5*contract('ie,jmbe->ibjm', Fme, t2)
-        Wibjm += contract('injm,nb->ibjm', Wmnij, t1)
+        term1 = -0.5*TEI[o, v, o, o].copy()
+        term2 = 0.5*contract('ie,jmbe->ibjm', Fme, t2)
+        term3 = contract('injm,nb->ibjm', Wmnij, t1)
         term4a = -TEI[o, v, v, o].copy() - contract('inef,nmfb->ibem', TEI[o, o, v, v], t2) 
-        Wibjm += contract('ibem,je->ibjm', term4a, t1)
+        term4 = contract('ibem,je->ibjm', term4a, t1)
         tau = 0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1) #-contract('ib,ja->ijab', t1, t1)
-        Wibjm += -contract('ibef,jmef->ibjm', TEI[o, v, v, v], tau)
-        Wibjm += contract('inem,jneb->ibjm', TEI[o, o, v, o], t2)
-        del term4a
-        return Wibjm
+        term5 = -contract('ibef,jmef->ibjm', TEI[o, v, v, v], tau)
+        term6 = contract('inem,jneb->ibjm', TEI[o, o, v, o], t2)
+        total = term1 + (term2 + term3 + term4 + term5 + term6) 
+        return total
                                                                                                                                           
     def Gfe(self, t2, lam2):
         return -0.5*contract('mnfb,mneb->fe', lam2, t2)
@@ -692,18 +765,20 @@ class CCSD_Helper(object):
         v = self.vir
         o = self.occ
         TEI = self.TEI
-        Wfiea = TEI[v, o, v, v].copy()
-        Wfiea += -contract('jiea,jf->fiea', TEI[o, o, v, v], t1)
-        return Wfiea
+        term1 = TEI[v, o, v, v].copy()
+        term2 = -contract('jiea,jf->fiea', TEI[o, o, v, v], t1)
+        total = term1 + term2
+        return total
         
      #Build Wooov   
     def LWmina(self, t1):
         v = self.vir
         o = self.occ
         TEI = self.TEI
-        Wmina = TEI[o, o, o, v].copy()
-        Wmina += contract('mifa,nf->mina', TEI[o, o, v, v], t1)
-        return Wmina
+        term1 = TEI[o, o, o, v].copy()
+        term2 = contract('mifa,nf->mina', TEI[o, o, v, v], t1)
+        total = term1 + term2
+        return total
         
 ###############Lam1 Equation#####################
  
@@ -723,18 +798,17 @@ class CCSD_Helper(object):
         Gmn = self.Gmn(t2, lam2)
         Weifa = self.LWfiea(t1)
         Wmina = self.LWmina(t1)
-
-        l1_rhs = Fia.copy()
-        l1_rhs += contract('ea,ie->ia', Fea, lam1)
-        l1_rhs += -contract('im,ma->ia', Fim, lam1)
-        l1_rhs += contract('ieam,me->ia', Wieam, lam1)
-        l1_rhs += contract('efam,imef->ia', Wefam, lam2)
-        l1_rhs += contract('ibjm,jmab->ia', Wibjm, lam2) 
-        l1_rhs += -contract('fe,fiea->ia', Gef, Weifa)
-        l1_rhs += -contract('nm,mina->ia', Gmn, Wmina)
-
-        del Fia, Fea, Fim, Wieam, Wefam, Wibjm, Gef, Gmn, Weifa, Wmina
-        return l1_rhs
+        
+        term1 = Fia.copy()
+        term2 = contract('ea,ie->ia', Fea, lam1)
+        term3 = -contract('im,ma->ia', Fim, lam1)
+        term4 = contract('ieam,me->ia', Wieam, lam1)
+        term5 = contract('efam,imef->ia', Wefam, lam2)
+        term6 = contract('ibjm,jmab->ia', Wibjm, lam2) 
+        term7 = -contract('fe,fiea->ia', Gef, Weifa)
+        term8 = -contract('nm,mina->ia', Gmn, Wmina)
+        total = (term1 + (term2 + term3 + term4) + term5 + term6 + term7 + term8) 
+        return total
 ################################################################
 
     # Build Woooo 
@@ -742,22 +816,24 @@ class CCSD_Helper(object):
         v = self.vir
         o = self.occ
         TEI = self.TEI
-        Wmnij = 0.5*TEI[o, o, o, o].copy()
-        Wmnij += contract('ijme,ne->ijmn', TEI[o, o, o, v], t1)
+        term1 = 0.5*TEI[o, o, o, o].copy()
+        term2 = contract('ijme,ne->ijmn', TEI[o, o, o, v], t1)
         tau = 0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1)
-        Wmnij += contract('ijfe,mnfe->ijmn', TEI[o, o, v, v], tau)
-        return Wmnij
+        term3 = contract('ijfe,mnfe->ijmn', TEI[o, o, v, v], tau)
+        total = (term1 + term2 + term3)
+        return total
              
     #Build Wvvvv          
     def LSWabef(self, t1, t2, F):
         v = self.vir
         o = self.occ
         TEI = self.TEI
-        Wabef = 0.5*TEI[v, v, v, v].copy()
-        Wabef += -contract('emab,mf->efab', TEI[v, o, v, v], t1)
+        term1 = 0.5*TEI[v, v, v, v].copy()
+        term2 = -contract('emab,mf->efab', TEI[v, o, v, v], t1)
         tau = 0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1) 
-        Wabef += contract('nmab,nmef->efab', TEI[o, o, v, v], tau)
-        return Wabef
+        term3 = contract('nmab,nmef->efab', TEI[o, o, v, v], tau)
+        total = (term1 + term2 + term3  )
+        return total
                                 
 ########################Lam 2 Equations################
     def lam2eq_rhs(self, t1, t2, lam1, lam2, F):
@@ -774,47 +850,39 @@ class CCSD_Helper(object):
         Fjb = self.Fme(t1, t2, F)
         Gbe = self.Gfe(t2, lam2)
         Gmj = self.Gmn(t2, lam2) 
-
-        l2_rhs = TEI[o, o, v, v]
-        term2a = contract('eb,ijae->ijab', Feb, lam2)
-        l2_rhs += term2a - term2a.swapaxes(2,3)
-        del term2a
         
+        term1 = TEI[o, o, v, v]
+        term2a = contract('eb,ijae->ijab', Feb, lam2)
+        term2 = term2a - term2a.swapaxes(2,3)
         term3a = -contract('jm,imab->ijab', Fjm, lam2)
-        l2_rhs += term3a - term3a.swapaxes(0,1)
-        del term3a
-
-        l2_rhs += contract('ijmn,mnab->ijab', Wijmn, lam2)
-        l2_rhs += contract('efab,ijef->ijab', Wefab, lam2)
+        term3 = term3a - term3a.swapaxes(0,1)
+        term4 = contract('ijmn,mnab->ijab', Wijmn, lam2)
+        term5 = contract('efab,ijef->ijab', Wefab, lam2)
         term6a = contract('ejab,ie->ijab', Wejab, lam1)
-        l2_rhs += term6a - term6a.swapaxes(0,1)
+        term6 = term6a - term6a.swapaxes(0,1)
         term7a = -contract('ijmb,ma->ijab', Wijmb, lam1)
-        l2_rhs += term7a - term7a.swapaxes(2,3)
-        del term6a, term7a
-
+        term7 = term7a - term7a.swapaxes(2,3)
         #term8 and 9
         term89a = contract('jebm,imae->ijab', Wjebm, lam2) + contract('jb,ia->ijab', Fjb, lam1)
         term89 = term89a 
         term89 = term89 - term89a.swapaxes(2,3) 
         term89 = term89 - term89a.swapaxes(0,1) 
-        l2_rhs += term89 + term89a.swapaxes(0,1).swapaxes(2,3) 
-        del term89
-
+        term89 = term89 + term89a.swapaxes(0,1).swapaxes(2,3) 
         term10a = contract('ijfb,af->ijab', TEI[o, o, v, v], Gbe)
-        l2_rhs += term10a - term10a.swapaxes(2,3)
+        term10 = term10a - term10a.swapaxes(2,3)
         term11a = -contract('mjab,im->ijab', TEI[o, o, v, v], Gmj)
-        l2_rhs += term11a - term11a.swapaxes(0,1)
-        del term10a, term11a 
-        del Feb, Fjm, Wijmn, Wefab, Wjebm, Wijmb, Fjb, Gbe, Gmj
-        return l2_rhs
+        term11 = term11a - term11a.swapaxes(0,1)
+        total = term1 + term2 + term3 + term4 + (term5 + term6) + term7 + term89
+        total = total + term10 + term11
+        return total
         
     def CCSD_pseudo_E(self, t1, t2, lam1, lam2, F):
         o = self.occ
         v = self.vir
         TEI = self.TEI
-        E1 = contract('ia,ia->', F[o, v], lam1)
-        E2 = 0.25*contract('ijab,ijab->', TEI[o, o, v, v], lam2)
-        return E1, E2                       
+        term1 = contract('ia,ia->', F[o, v], lam1)
+        term2 = 0.25*contract('ijab,ijab->', TEI[o, o, v, v], lam2)
+        return term1, term2                         
         
     def corrected_lam2(self, lam2, dlam2, F):
         o = self.occ
@@ -844,10 +912,10 @@ class CCSD_Helper(object):
         for x in range (maxiter):
             E1, E2 = self.CCSD_pseudo_E(t1, t2, lam1, lam2, F)
             pseudo_Em = E1 +E2
-            lam1rhs = self.lam_1eq_rhs(t1, t2, lam1, lam2, F)
-            lam2rhs = self.lam2eq_rhs(t1, t2, lam1, lam2 , F)
-            lam1 = self.corrected_lam1(lam1, lam1rhs, F)
-            lam2 = self.corrected_lam2(lam2, lam2rhs, F)
+            lam1rhs = self.lam_1eq_rhs(t1, t2, lam1, lam2, np.longdouble(F))
+            lam2rhs = self.lam2eq_rhs(t1, t2, lam1, lam2 ,np.longdouble(F))
+            lam1 = np.longdouble(self.corrected_lam1(lam1, lam1rhs, F))
+            lam2 = np.longdouble(self.corrected_lam2(lam2, lam2rhs, F))
             E1, E2 = self.CCSD_pseudo_E(t1, t2, lam1, lam2, F)
             pseudo_E = E1 +E2
             diff_E = np.abs( pseudo_E -pseudo_Em )
@@ -862,20 +930,20 @@ class CCSD_Helper(object):
         
     def DIIS_solver_Lam(self, t1, t2, lam1, lam2, F, maxsize, maxiter, E_min): 
             #Store the maxsize number of t1 and t2
-            lam1rhs = self.lam_1eq_rhs(t1, t2, lam1, lam2, F)
-            lam2rhs = self.lam2eq_rhs(t1, t2, lam1, lam2 , F)
-            lam1 = self.corrected_lam1(lam1, lam1rhs, F)
-            lam2 = self.corrected_lam2(lam2, lam2rhs, F)
+            lam1rhs = self.lam_1eq_rhs(t1, t2, lam1, lam2, np.longdouble(F))
+            lam2rhs = self.lam2eq_rhs(t1, t2, lam1, lam2 ,np.longdouble(F))
+            lam1 = np.longdouble(self.corrected_lam1(lam1, lam1rhs, F))
+            lam2 = np.longdouble(self.corrected_lam2(lam2, lam2rhs, F))
             lam1stored = [lam1.copy()]
             lam2stored = [lam2.copy()]
             errort1 = []
             errort2 = []
             
             for n in range(1, maxsize+1):  
-                lam1rhs = self.lam_1eq_rhs(t1, t2, lam1, lam2, F)
-                lam2rhs = self.lam2eq_rhs(t1, t2, lam1, lam2 , F)
-                lam1 = self.corrected_lam1(lam1, lam1rhs, F)
-                lam2 = self.corrected_lam2(lam2, lam2rhs, F)
+                lam1rhs = self.lam_1eq_rhs(t1, t2, lam1, lam2, np.longdouble(F))
+                lam2rhs = self.lam2eq_rhs(t1, t2, lam1, lam2 ,np.longdouble(F))
+                lam1 = np.longdouble(self.corrected_lam1(lam1, lam1rhs, F))
+                lam2 = np.longdouble(self.corrected_lam2(lam2, lam2rhs, F))
                 lam1stored.append(lam1.copy())
                 lam2stored.append(lam2.copy())
                 
@@ -892,7 +960,7 @@ class CCSD_Helper(object):
                     for m in range(maxsize):
                         a = contract('ia,ia->',errort1[m], errort1[n])
                         b = contract('ijab,ijab->', errort2[m], errort2[n])
-                        B[n, m] = a.real + b.real
+                        B[n, m] = a + b
     
                 # Build residual vector
                 A = np.zeros(maxsize + 1)
@@ -916,10 +984,10 @@ class CCSD_Helper(object):
                 if (abs(diff_E) < E_min):
                     break
                 #update t1 and t2 list
-                lam1rhs = self.lam_1eq_rhs(t1, t2, lam1, lam2, F)
-                lam2rhs = self.lam2eq_rhs(t1, t2, lam1, lam2 , F)
-                lam1 = self.corrected_lam1(lam1, lam1rhs, F)
-                lam2 = self.corrected_lam2(lam2, lam2rhs, F)
+                lam1rhs = self.lam_1eq_rhs(t1, t2, lam1, lam2, np.longdouble(F))
+                lam2rhs = self.lam2eq_rhs(t1, t2, lam1, lam2 ,np.longdouble(F))
+                lam1 = np.longdouble(self.corrected_lam1(lam1, lam1rhs, F))
+                lam2 = np.longdouble(self.corrected_lam2(lam2, lam2rhs, F))
                 lam1stored.append(lam1.copy())
                 lam2stored.append(lam2.copy())
                 
@@ -936,12 +1004,11 @@ class CCSD_Helper(object):
             print("Lambda2 energy =", E2)
             return CCSD_E, lam1, lam2
 
-    def print_2(self, t11):
+    def print_2(self, t1):
         #print("\n   The test function values:")
         #for i in range(F.shape[0]):
         #    for a in range(F.shape[1]):
         #        print i,"\t",  a, "\t", F[i][a]
-        t1 = t11.real
         t1_tmp = t1.ravel()
         #sort_t1 = sorted(t1_tmp, key=lambda v: -v if v <0 else v, reverse=True) 
         sort_t1 = sorted(t1_tmp, reverse=True)
@@ -954,9 +1021,7 @@ class CCSD_Helper(object):
                 print '\t', ('% 5.10f' %  sort_t1[x])
         print '\t', ('% 5.10f' %  sort_t1[-1])
 
-    def print_T_amp(self, t11, t22):
-        t1 = t11.real
-        t2 = t22.real
+    def print_T_amp(self, t1, t2):
         sort_t1 = sorted(t1.ravel())
         sort_t2 = sorted(t2.ravel())
 
@@ -975,9 +1040,7 @@ class CCSD_Helper(object):
             else:
                 print('\t', ('% 5.10f' %  sort_t2[x]))  
                 
-    def print_L_amp(self, lam11, lam22):
-        lam1 = lam11.real
-        lam2 = lam22.real
+    def print_L_amp(self, lam1, lam2):
         sort_lam1 = sorted(-abs(lam1.ravel()))
         sort_lam2 = sorted(lam2.ravel())
 
@@ -1018,24 +1081,28 @@ class CCSD_Helper(object):
     
     #Build Dvv 
     def Dij(self, t1, t2, lam1, lam2):
-        Dij = -contract('je,ie->ij', lam1, t1)
-        Dij += -0.5*contract('jmea,imea->ij', lam2, t2)
-        return Dij
+        term1 = contract('je,ie->ij', lam1, t1)
+        term2 = 0.5*contract('jmea,imea->ij', lam2, t2)
+        total = -(term1 + term2)
+        return total
     
       #Build Doo 
     def Dab(self, t1, t2, lam1, lam2):
-        Dab = contract('nb,na->ab', lam1, t1)
-        Dab += 0.5*contract('mneb,mnea->ab', lam2, t2)
-        return Dab 
+        term1 = contract('nb,na->ab', lam1, t1)
+        term2 = 0.5*contract('mneb,mnea->ab', lam2, t2)
+        total = term1 + term2
+        return total  
         
       #Build Dvo
     def Dai(self, t1, t2, lam1, lam2):
-        Dai = contract('ia->ai', t1)
-        Dai += contract('me,miea->ai', lam1, t2)
-        Dai += -contract('me,ma,ie->ai', lam1, t1, t1)
-        Dai += -0.5*contract('mnef,mnaf,ie->ai', lam2, t2, t1)
-        Dai += -0.5*contract('mnef,inef,ma->ai', lam2, t2, t1)
-        return Dai
+        term1a = t1 
+        term1 = contract('ia->ai', term1a)
+        term2 = contract('me,miea->ai', lam1, t2)
+        term3 = -contract('me,ma,ie->ai', lam1, t1, t1)
+        term4 = -0.5*contract('mnef,mnaf,ie->ai', lam2, t2, t1)
+        term5 = -0.5*contract('mnef,inef,ma->ai', lam2, t2, t1)
+        total = term1 + term2 + term3 + term4 + term5
+        return total
     #Dov is equal to lam1
 
     def Buildpho(self, F):
@@ -1119,6 +1186,8 @@ class CCSD_Helper(object):
         dip_xyz_corr = []
         for i in range(3):
             temp = contract('ij,ij->', dipolexyz[i], HF_p + corr_p)
+            #temp = contract('ij,ij->ij', dipolexyz[i], HF_p + corr_p)
+            #temp = contract('ii', temp)
             dip_xyz_corr.append(temp)   
         
         #Check important characteristics before moving on
@@ -1171,7 +1240,11 @@ class CCSD_Helper(object):
             with open('timing.csv', 'a') as f:
                 timing.to_csv(f, header=False) 
               
-       ##############save the data values plus the indices##################
+        #np.savetxt('t1.dat', t1, fmt='%.10e%+.10ej '*t1.shape[1])
+        #np.savetxt('t2.dat', t2.flatten(), fmt='%.10e%+.10ej ')
+        #np.savetxt('lam1.dat', lam1, fmt='%.10e%+.10ej '*lam1.shape[1])
+        #np.savetxt('lam2.dat', lam2.flatten(), fmt='%.10e%+.10ej ')
+        ##############save the data values plus the indices##################
         self.write_2data(F.real, 'F_real.dat', precs)
         self.write_2data(F.imag, 'F_imag.dat', precs)
         self.write_2data(t1.real, 't1_real.dat', precs)
@@ -1182,6 +1255,324 @@ class CCSD_Helper(object):
         self.write_2data(lam1.imag, 'lam1_imag.dat', precs)
         self.write_4data(lam2.real, 'lam2_real.dat', precs)
         self.write_4data(lam2.imag, 'lam2_imag.dat', precs)
+                ######save just the data values##############
+        #np.savetxt('F.dat', F, fmt='%.10e '*F.shape[1])
+        #np.savetxt('t1_real.dat', t1.real.flatten(), fmt='%.10f')
+        #np.savetxt('t1_imag.dat', t1.imag.flatten(), fmt='%.10f')
+        #np.savetxt('t2_real.dat', t2.real.flatten(), fmt='%.10f')
+        #np.savetxt('t2_imag.dat', t2.imag.flatten(), fmt='%.10f')
+        #np.savetxt('lam1_real.dat', lam1.real.flatten(), fmt='%.10f')
+        #np.savetxt('lam1_imag.dat', lam1.imag.flatten(), fmt='%.10f')
+        #np.savetxt('lam2_real.dat', lam2.real.flatten(), fmt='%.10f')
+        #np.savetxt('lam2_imag.dat', lam2.imag.flatten(), fmt='%.10f')
+
+
+
+###############################################
+#        
+#            
+    ##Rosenbrock Integrator 4th-order
+#
+#    "Parallel exponential Rosenbrock methods, 
+        #Vu Thai Luana, Alexander Ostermannb"
+################################################
+
+ 
+ ########################################################
+#       ###F, G, and A terms of the RHS of t1, t2, l1, l2 for doing the 
+#                RosenbrockTime integration
+###########################################################
+
+    def T1_OSC_terms(self, t1,F):
+        TEI = self.TEI
+        ndocc = 2*self.ndocc
+        nmo = 2*self.nmo
+        cons = np.zeros(shape=(ndocc, nmo-ndocc))
+        for i in range(ndocc):
+            for a in range(ndocc, nmo):
+                cons[i, a-ndocc] = F[a, a]- F[i, i] - TEI[i, a, i, a]
+        return cons
+        
+    def T2_OSC_terms(self, t2, F): 
+        TEI = self.TEI
+        ndocc = 2*self.ndocc
+        nmo = 2*self.nmo
+        cons = np.zeros(shape=(ndocc, ndocc, nmo-ndocc, nmo-ndocc))
+        for i in range(ndocc):
+            for j in range(ndocc):
+                for a in range(ndocc, nmo):
+                    for b in range(ndocc, nmo):
+                        cons[i][j][a-ndocc][b-ndocc] = F[b, b] + F[a, a] - F[j, j] - F[i, i] + 0.5*TEI[i, j, i, j] \
+                                         + 0.5*TEI[a, b, a, b] + 0.5*TEI[j, b, b, j] + 0.5*TEI[i, b, b, i]\
+                                         + 0.5*TEI[i, a, a, i] + 0.5*TEI[j, a, a, j]
+        return cons
+        
+    def T1eq_rhs_TD(self, t1, t2, F, Vt):
+        v = self.vir
+        o = self.occ  
+        #All rhs terms:
+        t1 = self.T1eq_rhs(t1, t2, F + Vt) 
+        #constant terms
+        #t1_cons = F[o, v].copy()
+        #constant *T_i^a
+        t1_cons_t1 = contract('ia, ia->ia', self.T1_OSC_terms(t1, F), t1)
+        #function * T_i^a
+        return t1 - t1_cons_t1 #- t1_cons_t1
+        
+        
+    def T2eq_rhs_TD(self, t1, t2, F, Vt):
+        v = self.vir
+        o = self.occ  
+        TEI = self.TEI 
+        #All rhs terms:
+        t2 = self.T2eq_rhs(t1, t2, F + Vt) 
+        #constant terms
+        #t2_cons = TEI[o, o, v, v].copy()
+        #constant *T_ij^ab
+        t2_cons_t2  = contract('ijab, ijab->ijab', self.T2_OSC_terms(t2, F), t2)
+        #function * T_ij^ab
+        return t2 - t2_cons_t2 #- t2_cons_t2
+
+                       
+    def L1eq_rhs_TD(self, t1, t2, lam1, lam2, F, Vt):
+        v = self.vir
+        o = self.occ  
+        #All rhs terms: 
+        lam1 = self.lam_1eq_rhs(t1, t2, lam1, lam2, F + Vt) 
+        #constant terms
+        #lam1_cons = F[o, v].copy()
+        #constant *L_i^a
+        lam1_cons_lam1  = contract('ia, ia->ia', self.T1_OSC_terms(lam1, F), lam1)
+        #function * L_i^a
+        return lam1 - lam1_cons_lam1 #- lam1_cons_lam1
+    
+    def L2eq_rhs_TD(self, t1, t2, lam1, lam2, F, Vt):
+        v = self.vir
+        o = self.occ  
+        TEI = self.TEI 
+        #All rhs terms:
+        lam2 = self.lam2eq_rhs(t1, t2, lam1, lam2, F + Vt) 
+        #constant terms
+        #lam2_cons = TEI[o, o, v, v].copy()
+        #constant *L_ij^ab
+        lam2_cons_lam2  = contract('ijab, ijab->ijab', self.T2_OSC_terms(lam2, F), lam2)
+        #function * L_ij^ab
+        return lam2 - lam2_cons_lam2 #- lam2_cons_lam2                
+
+########END F, G, A parameters####################
+
+
+############Time propagation###################
+    def Rosenbrock(self, F, t1, t2, lam1, lam2, w0, A, t0, tf, dt, timeout, precs, restart=None):
+        
+        #propagates any of the  T1, T2, L1  or L2 functions: 
+        
+         #Setup Pandas Data and time evolution
+        data =  pd.DataFrame( columns = ( 'time', 'mu_real', 'mu_imag')) 
+        timing =  pd.DataFrame( columns = ( 'total','t1', 't2', 'l1','l2')) 
+        m=10.0
+        #        ##Electric field, it is in the z-direction for now      
+        def Vt(t):
+            mu = self.Defd_dipole()
+            return -A*mu[2]*np.sin(2*np.pi*w0*t)*np.exp(-t*t/5.0)   
+        t = t0       
+        
+        ##################functions for Rosenbrock###############
+        c2 =0.5
+        c3 =1.0
+        #Needed functions 
+        
+        def phi1(z):
+            return (cmath.exp(z) -1)/z
+        #print phi1(A)
+        def phi2(z):
+            return (cmath.exp(z) -1-z)/z**2
+        def phi3(z):
+            return -(2 - 2*cmath.exp(z)  +2*z+np.power(z, 2))/( 2*np.power(z, 3))
+        def phi4(z):
+            return -(6 - 6*cmath.exp(z)  + 6*z+3*np.power(z, 2)+np.power(z, 3))/( 6*np.power(z, 4))
+        def b2(z):
+            return 16*phi3(z) - 48*phi4(z)
+        def b3(z):
+            return -2*phi3(z) + 12*phi4(z)   
+        def b2_bar(z):
+            return 16*phi3(z)
+        def b3_bar(z):
+            return -2*phi3(z) 
+        Aia = -1j*self.T1_OSC_terms(t1, F)
+        
+        occ = 2*self.ndocc
+        vir = 2*(-self.ndocc + self.nmo)
+        pphi1 = np.zeros(shape=(occ, vir), dtype=np.complex) 
+        pphi1c2 = np.zeros(shape=(occ, vir), dtype=np.complex)
+        pphi1c3 = np.zeros(shape=(occ, vir), dtype=np.complex)
+        pphi3 = np.zeros(shape=(occ, vir), dtype=np.complex) 
+        pphi4= np.zeros(shape=(occ, vir), dtype=np.complex) 
+        for i in range(Aia.shape[0]):
+            for a in range(Aia.shape[1]):
+                x =  abs(Aia[i, a])           
+                if  np.around(x, decimals=6) == 0.00000000000:
+                    pphi1[i,a] = 1.0
+                    pphi1c2[i,a] = 0.0
+                    pphi1c3[i,a] = 0.0
+                    pphi3[i,a] = 1.0
+                    pphi4[i,a] = 1.0   
+                else:   
+                    pphi1[i,a] = phi1(dt*Aia[i,a])
+                    pphi1c2[i,a] = phi1(c2*dt*Aia[i,a])
+                    pphi1c3[i,a] = phi1(c3*dt*Aia[i,a])
+                    pphi3[i,a] = phi3(dt*Aia[i,a])
+                    pphi4[i,a] = phi4(dt*Aia[i,a])  
+
+        Aijab = -1j*self.T2_OSC_terms(t2, F)
+        phhi1 = np.zeros(shape=(occ, occ, vir, vir), dtype=np.complex) 
+        phhi1c2 = np.zeros(shape=(occ, occ, vir, vir), dtype=np.complex)
+        phhi1c3 = np.zeros(shape=(occ, occ, vir, vir), dtype=np.complex) 
+        phhi3 = np.zeros(shape=(occ, occ, vir, vir), dtype=np.complex) 
+        phhi4= np.zeros(shape=(occ, occ, vir, vir), dtype=np.complex)
+        for i in range(occ):
+            for j in range(occ):
+                for a in range(vir):
+                    for b in range(vir):   
+                        x =  abs(Aijab[i, j, a, b])           
+                        if  np.around(x, decimals=6) == 0.00000000000:
+                            phhi1[i, j, a, b] = 1.0
+                            phhi1c2[i, j, a, b] = 1.0
+                            phhi1c3[i, j, a, b] = 1.0
+                            phhi3[i, j, a, b] = 1.0
+                            phhi4[i, j, a, b] = 1.0   
+                        else:   
+                            phhi1[i, j, a, b] = phi1(dt*Aijab[i, j, a, b])
+                            phhi1c2[i, j, a, b] = phi1(c2*dt*Aijab[i, j, a, b])
+                            phhi1c3[i, j, a, b] = phi1(c3*dt*Aijab[i, j, a, b])
+                            phhi3[i, j, a, b] = phi3(dt*Aijab[i, j, a, b])
+                            phhi4[i, j, a, b] = phi4(dt*Aijab[i, j, a, b])     
+        
+        b_12 = 16*pphi3 - 48*pphi4
+        b_13 = -2*pphi3 + 12*pphi4
+        b_22 = 16*phhi3 - 48*phhi4
+        b_23 = -2*phhi3 + 12*phhi4  
+        del pphi3
+        del pphi4
+        del phhi3
+        del phhi4
+
+        ##################END functions for Rosenbrock###############
+        
+        i=0
+        start = time.time()
+        #Do the time propagation
+        while t < tf:
+            L1min = np.around(lam1, decimals=precs) 
+            L2min = np.around(lam2, decimals=precs) 
+            dt = dt/m
+            itertime_t1 = itertime_t2 = 0
+            for n in range(int(m)):
+                t1min = np.around(t1, decimals=precs) 
+                t2min = np.around(t2, decimals=precs) 
+                itertime = time.time()        
+        
+        
+                ####T1 propagation##########
+                un = np.around(t1, decimals=precs)           
+                Fa = -1j*self.T1eq_rhs(un, t2, F + Vt(t))
+                def gn(t, un):
+                    return -1j*self.T1eq_rhs_TD(un, t2, F, Vt(t))   
+            
+                Un2 = un+ c2*dt*contract('ia,ia->ia', pphi1c2, Fa)
+                Un3 = un + c3*dt*contract('ia,ia->ia', pphi1c3, Fa)
+                Dn2 = gn(t, Un2) - gn(t, un) 
+                Dn3 = gn(t, Un3) - gn(t, un)  
+                dt1 = dt*contract('ia,ia->ia', pphi1, Fa) 
+                dt1 = dt1 + dt*contract('ia,ia->ia', b_12, Dn2) + dt*contract('ia,ia->ia', b_13, Dn3)
+                
+                itertime_t1 = -itertime + time.time()
+                itertime = time.time()
+                #####T2 propagation
+                un = np.around(t2, decimals=precs) 
+                Fa = -1j*self.T2eq_rhs(t1, un, F + Vt(t))
+                def gn(t, un):
+                    return -1j*self.T2eq_rhs_TD(t1, un, F, Vt(t))           
+            
+                Un2 = un + c2*dt*contract('ijab,ijab->ijab', phhi1c2, Fa)
+                Un3 = un + c3*dt*contract('ijab,ijab->ijab', phhi1c3, Fa)
+                Dn2 = gn(t, Un2) - gn(t, un)  
+                Dn3 = gn(t, Un3) - gn(t, un) 
+                dt2 = dt*contract('ijab,ijab->ijab', phhi1, Fa) 
+                dt2 = dt2 + dt*contract('ijab,ijab->ijab', b_22, Dn2) + dt*contract('ijab,ijab->ijab', b_23, Dn3)
+
+                itertime_t2 = -itertime + time.time()
+            
+            dt = m*dt
+            itertime = time.time()
+            ########L1 propagation
+            un = np.around(lam1, decimals=precs) 
+            Fa =1j*self.lam_1eq_rhs(t1, t2, un, lam2, F + Vt(t))
+            def gn(t, un):
+                return 1j*self.L1eq_rhs_TD(t1, t2, un, lam2, F, Vt(t))
+            
+            Un2 = un+ c2*dt*contract('ia,ia->ia', np.conjugate(pphi1c2), Fa)
+            Un3 = un + c3*dt*contract('ia,ia->ia', np.conjugate(pphi1c3), Fa)
+            #Dn2 =1j*self.lam_1eq_rhs(t1, t2, Un2, lam2, F + Vt(t)) - contract('ia,ia->ia', Aia, Un2)
+            #Dn2 = Dn2 - Fa - contract('ia,ia->ia', Aia, un)
+            #Dn3 =1j*self.lam_1eq_rhs(t1, t2, Un3, lam2, F + Vt(t)) - contract('ia,ia->ia', Aia, t1) 
+            #Dn3 = Dn3 - Fa - contract('ia,ia->ia', Aia, un)
+            Dn2 = gn(t, Un2) - gn(t, un) 
+            Dn3 = gn(t, Un3) - gn(t, un) 
+            dL1 = dt*contract('ia,ia->ia', np.conjugate(pphi1), Fa) 
+            dL1 = dL1 + dt*contract('ia,ia->ia', np.conjugate(b_12), Dn2) + dt*contract('ia,ia->ia', np.conjugate(b_13), Dn3)
+                
+            itertime_l1 = -itertime  + time.time()
+            itertime = time.time()   
+            ##########L2 propagation
+            un = np.around(lam2, decimals=precs) 
+            Fa = 1j*self.lam2eq_rhs(t1, t2, lam1, un, F + Vt(t))
+            def gn(t, un):
+                return 1j*self.L2eq_rhs_TD(t1, t2, lam1, un, F, Vt(t))
+
+            Un2 = un+ c2*dt*contract('ijab,ijab->ijab', np.conjugate(phhi1c2), Fa)
+            Un3 = un + c3*dt*contract('ijab,ijab->ijab',np.conjugate(phhi1c3), Fa)
+            Dn2 = gn(t, Un2) - gn(t, un)  
+            Dn3 = gn(t, Un3) - gn(t, un)  
+            dL2 = dt*contract('ijab,ijab->ijab', np.conjugate(phhi1), Fa) 
+            dL2 = dL2 + dt*contract('ijab,ijab->ijab', np.conjugate(b_22), Dn2) + dt*contract('ijab,ijab->ijab', np.conjugate(b_23), Dn3)
+            
+            itertime_l2 = -itertime  + time.time()
+            total = itertime_t1 + itertime_t2 + itertime_l1 + itertime_l2
+            timing.loc[i] = [total, itertime_t1, itertime_t2, itertime_l1, itertime_l2 ]
+            ####Update t1, t2, l1, l2
+            t1 = t1min + dt1
+            t2 = t2min + dt2
+            lam1 = L1min + dL1
+            lam2 = L2min + dL2
+            i += 1
+            t =t0 + i*dt
+            stop = time.time()-start
+            
+            if abs(stop)>0.9*timeout*60.0:
+                print('The file timed out just before',0.9*timeout*60.0, 'sec')
+                self.Save_data(F, t1, t2, lam1, lam2, data, timing, precs, restart)
+                self.Save_parameters(w0, A, t0, t, dt, precs, t1.shape[0], t1.shape[1])
+                
+                break
+            #Calculate the dipole moment using the density matrix
+            mua = self.dipole_moment(t1, t2, lam1, lam2, F)
+            data.loc[i] = [ t, mua[2].real, mua[2].imag  ]
+            print(t, mua[2])
+            
+            if abs(mua[2].imag) > 100:
+                print('The dipole was greater than 100, UNSTABLE, file timed out at approx.',0.9*timeout*60.0, 'sec')
+                self.Save_data(F, t1, t2, lam1, lam2, data, timing, precs, restart)
+                self.Save_parameters(w0, A, t0, t, dt, precs, t1.shape[0], t1.shape[1])
+                break
+
+        stop = time.time()
+        print("total time non-adapative step:", stop-start)
+        print("total steps:", i)
+        print("step-time:", (stop-start)/i)
+        self.Save_data(F, t1, t2, lam1, lam2, data, timing, precs, restart)
+        self.Save_parameters(w0, A, t0, t, dt, precs,  t1.shape[0], t1.shape[1])
+                      
 
         
 ###############################################
@@ -1200,6 +1591,11 @@ class CCSD_Helper(object):
         k2 = self.T1eq_rhs(t1 + dt/2.0*k1, t2, F + Vt(t + dt/2.0)) 
         k3 = self.T1eq_rhs(t1 + dt/2.0*k2, t2, F + Vt(t + dt/2.0))
         k4 = self.T1eq_rhs(t1 + dt*k3, t2, F + Vt(t + dt))  
+        #k1 = self.T1eq_rhs_TD(t1, t2, F, Vt(t))
+        #k2 = self.T1eq_rhs_TD(t1 + dt/2.0*k1, t2, F, Vt(t + dt/2.0)) 
+        #k2 = self.T1eq_rhs_TD(t1 + dt/2.0*k1, t2, F, Vt(t + dt/2.0))  
+        #k3 = self.T1eq_rhs_TD(t1 + dt/2.0*k2, t2, F, Vt(t + dt/2.0))
+        #k4 = self.T1eq_rhs_TD(t1 + dt*k3, t2, F, Vt(t + dt)) 
         return dt/6.0*(k1 + 2.0*k2 + 2.0*k3 + k4)
          
     #T2 Runge-Kutta function 
@@ -1208,6 +1604,10 @@ class CCSD_Helper(object):
         k2 = self.T2eq_rhs(t1, t2 + dt/2.0*k1, F + Vt(t + dt/2.0))  
         k3 = self.T2eq_rhs(t1, t2 + dt/2.0*k2, F + Vt(t + dt/2.0)) 
         k4 = self.T2eq_rhs(t1, t2 + dt*k3,  F + Vt(t + dt)) 
+        #k1 = self.T2eq_rhs_TD(t1, t2, F, Vt(t))
+        #k2 = self.T2eq_rhs_TD(t1, t2 + dt/2.0*k1, F, Vt(t + dt/2.0))  
+        #k3 = self.T2eq_rhs_TD(t1, t2 + dt/2.0*k2, F, Vt(t + dt/2.0)) 
+        #k4 = self.T2eq_rhs_TD(t1, t2 + dt*k3,  F, Vt(t + dt)) 
         return dt/6.0*(k1 + 2.0*k2 + 2.0*k3 + k4)
                  
     #L1 Runge-Kutta function 
@@ -1216,6 +1616,10 @@ class CCSD_Helper(object):
         k2 = self.lam_1eq_rhs(t1, t2, lam1 + dt/2.0*k1, lam2, F + Vt(t + dt/2.0))  
         k3 = self.lam_1eq_rhs(t1, t2, lam1 + dt/2.0*k2, lam2, F + Vt(t + dt/2.0)) 
         k4 = self.lam_1eq_rhs(t1, t2, lam1 + dt*k3, lam2, F + Vt(t + dt)) 
+        #k1 = self.L1eq_rhs_TD(t1, t2, lam1, lam2, F, Vt(t))
+        #k2 = self.L1eq_rhs_TD(t1, t2, lam1 + dt/2.0*k1, lam2, F, Vt(t + dt/2.0))  
+        #k3 = self.L1eq_rhs_TD(t1, t2, lam1 + dt/2.0*k2, lam2, F, Vt(t + dt/2.0)) 
+        #k4 = self.L1eq_rhs_TD(t1, t2, lam1 + dt*k3, lam2, F, Vt(t + dt)) 
         return dt/6.0*(k1 + 2.0*k2 + 2.0*k3 + k4)  
            
    #L2 Runge-Kutta function  
@@ -1224,6 +1628,10 @@ class CCSD_Helper(object):
         k2 = self.lam2eq_rhs(t1, t2, lam1, lam2 + dt/2.0*k1, F + Vt(t + dt/2.0))  
         k3 = self.lam2eq_rhs(t1, t2, lam1, lam2 + dt/2.0*k2, F + Vt(t + dt/2.0)) 
         k4 = self.lam2eq_rhs(t1, t2, lam1, lam2 + dt*k3, F + Vt(t + dt)) 
+        #k1 = self.L2eq_rhs_TD(t1, t2, lam1, lam2, F, Vt(t))
+        #k2 = self.L2eq_rhs_TD(t1, t2, lam1, lam2 + dt/2.0*k1, F, Vt(t + dt/2.0))  
+        #k3 = self.L2eq_rhs_TD(t1, t2, lam1, lam2 + dt/2.0*k2, F, Vt(t + dt/2.0)) 
+        #k4 = self.L2eq_rhs_TD(t1, t2, lam1, lam2 + dt*k3, F, Vt(t + dt)) 
         return dt/6.0*(k1 + 2.0*k2 + 2.0*k3 + k4)      
 ############END functions for Runge-Kutta#############
      
@@ -1298,4 +1706,6 @@ class CCSD_Helper(object):
         print("total time non-adapative step:", stop-start)
         print("total steps:", i)
         print("step-time:", (stop-start)/i)
-
+        #self.Save_data(F, t1, t2, lam1, lam2, data, timing, restart)
+        #self.Save_data(F, t1min, t2min, L1min, L2min, data, timing, restart)
+#self.Save_parameters(w0, A, t0, t-dt, dt, precs, t1.shape[0], t1.shape[1])
