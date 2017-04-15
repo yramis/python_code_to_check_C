@@ -80,7 +80,7 @@ class CCSD_Calculator(object):
         print("difference between psi4 and me=", psienergy.real - (CCSD_E + scf))
         mol.print_T_amp(t1, t2)
         
-        psi4.driver.p4util.compare_values(psi4.energy('CCSD'), CCSD_E+scf, 12, 'CCSD Energy')
+        psi4.driver.p4util.compare_values(psi4.energy('CCSD'), CCSD_E+scf, 10, 'CCSD Energy')
 ############################################## 
 #
 #
@@ -103,28 +103,27 @@ class CCSD_Calculator(object):
         print("difference between psi4 and me=", pseudo - (pseudo_E))
         mol.print_L_amp(lam1, lam2)
 
-
-        mol.Test_T1_rhs(t1, t2, lam1, lam2, F)
- ############################################## 
+##############################################
 #
 #
 #           Time-dependent dipole matrix
 #
 #
-##################################################    
+##################################################
+        import sys
+        print dir()
+            #for name in dir():
+            #if not name.startswith('_'):
+            #del globals()[name]
+        del maxiter, maxsize, psienergy,  MP2, E_min, CCSD_E, pseudo, pseudo_E, scf, timeout, v
+        print dir()
+        
 
-      #Start parameters
-        w0 = 4.568635 #frequency of the oscillation and transition frequency
-        A = 0.05#the amplitude of the electric field    
-        t0 = 0.0 #the start time
-        tf = 200.2 #the stop time, the actual stop time is governed by the timelength of the job
-                     #Unless it completes enough steps to get to tf first. 
-        dt = 0.0002 #time step
-        precs = 9 #precision of the t1, t2, l1, l2 amplitudes
-        ####4th-order Rosenbrock "Parallel exponential Rosenbrock methods, 
-        #Vu Thai Luana, Alexander Ostermannb"
-        #mol.Rosenbrock(F, t1, t2, lam1, lam2, w0, A, t0, tf, dt, timeout, precs)   
-        ######4th-order Runge-Kutta   
-        #mol.Runge_Kutta_solver(F, t1, t2, lam1, lam2, w0, A, t0, tf, dt, timeout, precs)      
+        mol.Test_T1_rhs(t1, t2, lam1, lam2, F)
+
+
+
+
+
 
 
