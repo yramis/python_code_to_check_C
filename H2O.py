@@ -41,7 +41,7 @@ symmetry c1
 
 
 opt_dict = {
-  "basis": '6-31g',
+  "basis": 'sto-3g',
   "reference": "RHF",
   "mp2_type": "conv",
   "roots_per_irrep": [40],

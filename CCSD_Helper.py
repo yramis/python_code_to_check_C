@@ -54,6 +54,7 @@ class CCSD_Helper(object):
         self.H = T + V
         self.occ = slice(2*self.ndocc)
         self.vir = slice(2*self.ndocc, 2*self.nmo)
+        print self.vir
         #MO energies
         self.eps = np.asarray(self.wfn.epsilon_a()).repeat(2, axis=0)
         #self.TEI_MO = np.asarray(self.mints.mo_spin_eri(self.C, self.C))
@@ -62,7 +63,7 @@ class CCSD_Helper(object):
     def TEI_MO(self, C=None):
         if C is None: C = self.C
         return np.asarray(self.mints.mo_spin_eri(C, C))
-        
+
 
 
 
@@ -216,10 +217,13 @@ class CCSD_Helper(object):
         extra2 = -0.5*contract('nmei,mnae->ia', TEI[o, o, v, o], t2) 
         extra3 = -0.5*contract('maef,imef->ia', TEI[o, v, v, v], t2)
         t1_rhs = term1 + term2 + term3 + term4 + extra1 + extra3 + extra2
+
+        # Check using my definition to get the converged t1 t2 values
+        t1_rhs = self.T1eq_rhs(t1, t2, Fa)
         #print("This is T1[R]")
-        #self.print_2(total.real)
+        #self.print_2(t1_rhs.real)
         #print("This is T1[I]")
-        #self.print_2(total.imag)
+        #self.print_2(t1_rhs.imag)
         
         ########check T2 equation###########
         #check DT2
@@ -309,7 +313,8 @@ class CCSD_Helper(object):
         #check Wmbej
         term1 = TEI[o, v, v, o].copy()
         term2 = -contract('mnej,nb->mbej', TEI[o, o, v, o], t1)
-        t2t1 = 0.5*t2 + contract('jf,nb->jnfb', t1, t1)
+        # the t1 t1 term below doesn't match the 1670, 1680, 1640, 1650,
+        t2t1 = 0.5*t2 #+ contract('jf,nb->jnfb', t1, t1)
         term34 = -contract('mnef,jnfb->mbej', TEI[o, o, v, v], t2t1)
         term5 = contract('mbef,jf->mbej', TEI[o, v, v, v], t1)
         Wmbej = term1 + term2 + term34 + term5
@@ -320,10 +325,65 @@ class CCSD_Helper(object):
         t2_rhs = t2_rhs - term6tmp.swapaxes(2, 3)
         t2_rhs = t2_rhs - term6tmp.swapaxes(0, 1)
         t2_rhs = t2_rhs + term6tmp.swapaxes(0, 1).swapaxes(2, 3)
+        
+
+
+
+
+
+
+        #Check that the t1 t1 term is the one that is slightly different by
+        #taking my T2 checked equations and then subtracting that Wmbej t1t1 term.
+        t2_rhs = self.T2eq_rhs(t1, t2, Fa)
+        t2t1 =  contract('jf,nb->jnfb', t1, t1)
+        Wmbej_t1t1_term = contract('mnef,jnfb->mbej', TEI[o, o, v, v], t2t1)
+        term6tmp = contract('mbej,imae->ijab', Wmbej_t1t1_term, t2)
+        t2_rhs = t2_rhs + term6tmp
+        t2_rhs = t2_rhs - term6tmp.swapaxes(2, 3)
+        t2_rhs = t2_rhs - term6tmp.swapaxes(0, 1)
+        t2_rhs = t2_rhs + term6tmp.swapaxes(0, 1).swapaxes(2, 3)
+    
         #print("This is T2 [R]")
         #self.print_2(t2_rhs.real)
         #print("This is T2 [I]")
         #self.print_2(t2_rhs.imag)
+
+        nmo = 2*self.nmo
+        ndocc = 2*self.ndocc
+        DTEI = TEI[o, o, v, v].copy()
+        #D <ij|ab> (ia,bj)
+        #<alpha beta | alpha beta >
+        for i in range(ndocc):
+            for j in range(ndocc):
+                for a in range(nmo-ndocc):
+                    for b in range(nmo-ndocc):
+                        if i % 2 == b % 2 == 0 and j % 2 == a % 2 == 1:
+                            pass
+                        elif i % 2 == b % 2 == 1 and j % 2 == a % 2 == 0:
+                            pass
+                        else:
+                            DTEI[i,j,a,b] = 0
+
+        #print("D<ij|ab>(ia,bj)")
+        #self.print_2(DTEI)
+
+        Ymejn = -contract('mnef,jf->mejn', DTEI, t1)
+        term6tmp = -contract('mejn,nb->mbej', Ymejn, t1)
+        term7tmp = contract('mbej,imae->ijab', term6tmp, t2)
+        t2_rhs = t2_rhs + term7tmp
+        
+        #print ("Ymejn real term")
+        #self.print_2(Ymejn.real)
+        #print ("Wmbej t1t1 real term")
+        #self.print_2(term6tmp)
+        #print ("t2_rhs real term")
+        #self.print_2(t2_rhs.real)
+        
+
+
+
+
+
 
 
 #################check lam1 eq #########################################
@@ -355,53 +415,286 @@ class CCSD_Helper(object):
         Fim = term1 + term2 + term3 + term4 
         lam1_rhs = lam1_rhs - contract('im,ma->ia', Fim, lam1)
     
-    
-    #def Gfe(self, t2, lam2):
-    #    return -0.5*contract('mnfb,mneb->fe', lam2, t2)
-    
-    #def Gmn(self, t2, lam2):
-    #    return 0.5*contract('njed,mjed->nm', lam2, t2)
-    
         Gmn = self.Gmn(t2, lam2)
-        #print("This is Gmn [R]")
-        #self.print_2(Gmn.real)
-        #print("This is Gmn [I]")
-        #self.print_2(Gmn.imag)
-    
         Gef = self.Gfe(t2, lam2)
-        #print("This is Gfe [R]")
-        #self.print_2(Gfe.real)
-        #print("This is Gfe [I]")
-        #self.print_2(Gfe.imag)
+
         Weifa = self.LWfiea(t1)
         Wmina = self.LWmina(t1)
-        #print("This is Wmnia")
-        #self.print_2(Wmina.real)
+
+        lam1_rhs = lam1_rhs - contract('nm,mina->ia', Gmn, Wmina)
+        lam1_rhs = lam1_rhs - contract('fe,fiea->ia', Gef, Weifa)
+        #print("This is GMn Wmnia [R]")
+        #self.print_2(lam1_rhs_2.real)
+        #print("This is Gmn Wmnia [I]")
+        #self.print_2(lam1_rhs_2.imag)
+
+
+
+        term1Wabef = 0.5*TEI[v, v, v, v].copy() #
+        term2Wabef = -contract('emab,mf->efab', TEI[v, o, v, v], t1) #
+        tau = 0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1)
+        term3Wabef = contract('nmab,nmef->efab', TEI[o, o, v, v], tau) #
+        Wabef = term1Wabef + term2Wabef + term3Wabef
+        #Wabef = self.LSWabef(t1, t2, Fa)
+        Fme = self.Fme(t1, t2, Fa)
+    
+        term1 = 0.5*TEI[v, v, v, o].copy()#
+        term2 = 0.5*contract('na,mnef->efam', Fme, t2)#
+        term3 = contract('efab,mb->efam', Wabef, t1)
+        term4a = -TEI[o, v, v, o].copy() + contract('jnab,nmfb->jfam', TEI[o, o, v, v], t2)#
+        term4 = contract('jfam,je->efam', term4a, t1)#
+        tau =0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1) #- contract('ib,ja->ijab', t1, t1)
+        term5 = contract('jnam,jnef->efam', TEI[o, o, v, o], tau) #
+        term6 = -contract('jfab,jmeb->efam', TEI[o, v, v, v], t2) #
+        Wefam = term1 + (term2 + term3 + term4 + term5 + term6) #+ extra
+
+
+
+
+
+
+        #Check Wabei or Wefam
+        # Term I
+        term1 = TEI[v, v, v, o].copy()
+        #term1 = 0.5*TEI[v, v, v, o].copy()
         
-        lam1_rhs_1 = lam1_rhs - contract('fe,fiea->ia', Gef, Weifa)
-        lam1_rhs_2 = lam1_rhs - contract('nm,mina->ia', Gmn, Wmina)
-        print("This is GMn Wmnia [R]")
-        self.print_2(lam1_rhs_2.real)
-        print("This is Gmn Wmnia [I]")
-        self.print_2(lam1_rhs_2.imag)
-    
-    
-        #print("This is lam*LFim [I]")
-        #self.print_2(lam1_rhs.imag)
-    
-    
-        #term1 and term3 match
-        #print("This is LFim")
-        #self.print_2(Fim.real )#+  term3.real)
-        #print("This is Fij[I]")
-        #self.print_2()
-        #print("This is Fia")
-        #self.print_2(Fia.real)
+        # Term II
+        #- Fme t(mi,ab) -1/2 F_ME[R] t_Mi^Ab[R]
+        
+        #term2 = contract('na,mnef->efam', Fme, t2)
+        #term2 = contract('me,miab->abei', Fme.copy(), t2)
+        term2 = contract('na,mnef->efam', Fme.copy(), t2.copy())
+        
+        # Term IIIa
+        #+ t(i,f) <ab||ef>
+        term3a = contract('abef,if->abei', TEI[v, v, v, v], t1)
+        #term3a = contract('efab,mb->efam', 0.5*TEI[v, v, v, v].copy(), t1)
+        
+        
+        #Term IIIc + IIId + IV
+        #+ 1/2 t(mn,ab) <mn||ef> t(i,f)              + 1/2 P(ab) t(m,a) t(n,b) <mn||ef> t(i,f)
+        #+ 1/2 t(mn,ab) <mn||ei>                     + 1/2 P(ab) t(m,a) t(n,b) <mn||ei>
+        tau = t2 + contract('ia,jb->ijab', t1, t1) - contract('ib,ja->ijab', t1, t1)
+        term4a = -0.5*contract('mnab,mnie->abei', tau, Wmina)
+        
+        
+        #tau =0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1)
+        #term4a = contract('jnam,jnef->efam', TEI[o, o, v, o], tau)
+
+        #tau = 0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1)
+        #Wabeft = contract('nmab,nmef->efab', TEI[o, o, v, v], tau)#
+        #term4a = term4a + contract('efab,mb->efam', Wabeft, t1)
+        
+            
+        #Term IIIb + V
+        #- P(ab) t(i,f) t(m,b) <am||ef> + P(ab) t(mi,fb) <am||ef>   IIIB + V
+        tau = t2 + contract('ia,jb->ijab', t1, t1)
+        term5a = -contract('imfb,amef->abei', tau, TEI[v, o, v, v])
+        term5 = term5a - term5a.swapaxes(0, 1) #adding in this step doesn't matchpsi4
         
 
 
+        #term5b = -contract('emab,mf->efab', TEI[v, o, v, v], t1)
+        #term5a = contract('efab,mb->efam', term5b, t1)
+        #term5 = term5a - contract('jfab,jmeb->efam', TEI[o, v, v, v], t2)
+        
+        #print("This is tiA")
+        #self.print_2(t1.real)
+        
+        #NEED TO MATCH THIS TERM!!!!
+        #Term VI and VII
+        #- P(ab) t(m,a) <mb||ei> - P(ab) t(m,a) t(ni,fb) <mn||ef>
+        Zeimb = contract('mnef,nifb->eimb', TEI[o, o, v, v], t2)
+        Zeimb = Zeimb + TEI[v, o, o, v].copy()
+        term6a = -contract('eimb,ma->abei', Zeimb, t1)
+        term6 = 0*term6a - term6a.swapaxes(0,1)
+        #print("This is term6a[R]")
+        #self.print_2(term6a.real)
 
 
+
+        Zeiam = contract('mnef,niaf->eiam', TEI[o, o, v, v], t2)
+        Zeiam = Zeiam + TEI[v, o, v, o].copy()
+        term6b = -contract('eiam,mb->abei', Zeiam.real, t1.real)
+
+        Wabei = term1 + term2 + term3a + term4a + term5a + term6a + term6b
+
+        print("Wabei Real")
+        self.print_2( Wabei.real)
+
+
+        print("term6")
+        self.print_2(term6b.real)
+
+
+
+
+
+
+        term6a = contract('ma,nifb,mnef->abei', t1, t2, TEI[o, o, v, v])
+        term6a = term6a + contract('ma,mbei->abei',t1, TEI[o, v, v, o])
+        term6 = term6a - term6a.swapaxes(0,1)
+        #term6 = contract('ma,eimb->abei',t1, TEI[v, o, o, v])
+
+        term6a = -TEI[o, v, v, o].copy() + contract('jnab,nmfb->jfam', TEI[o, o, v, v], t2)
+        term6 = contract('jfam,je->efam', term6a, t1)
+
+#print("This is Wefam")
+#self.print_2(term1 + term2.real + term3a.real + term4a.real + term5a.real)
+        #self.print_2(-term6.real)
+
+        #print("This is tijab")
+        #print shape(t2.real)
+        #self.print_2(t2.real)
+        
+        #test = contract('efab,mb->efam', Wefam, lam2)
+
+#print("This is lam2[R]")
+#lam2 = 2.0*lam2 - contract('ijab->ijba',lam2)
+#self.print_2(lam2.real)
+        
+        
+        #Wefam = self.LRWefam(t1, t2, Fa)
+        Wefam = (term1 + term2.real + term3a.real + term4a.real + term5.real + term6.real)
+        term = contract('efam,imef->ia', Wefam.real, lam2.real)
+        print("This is Lam2 * Wefam")
+        self.print_2(term.real)
+
+        Wefam = self.LRWefam(t1, t2, Fa)
+        #Wefam = term1 + term2.real + term3a.real + term4a.real + term5.real + term6a.real
+        term = contract('efam,imef->ia', Wefam.real, lam2.real)
+        print("This is Lam2 * Wefam")
+        self.print_2(term.real)
+
+
+
+
+
+        #Check Wibjm
+        Fme = self.Fme(t1, t2, F)
+        #Build Wmnij
+        #term1 = 0.5*TEI[o, o, o, o].copy()
+        #term2 = contract('inem,je->injm', TEI[o, o, v, o], t1)
+        #tau = 0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1) #- contract('ib,ja->ijab', t1, t1)
+        #term3 = contract('inef,jmef->injm', TEI[o, o, v, v], tau)
+        #Wmnij = term1 + term2 + term3
+        Wmnij = self.LSWmnij(t1, t2, F)
+    
+        term1 = -0.5*TEI[o, v, o, o].copy()
+        term2 = 0.5*contract('ie,jmbe->ibjm', Fme, t2)
+        term3 = contract('injm,nb->ibjm', Wmnij, t1)
+        term4a = -TEI[o, v, v, o].copy() - contract('inef,nmfb->ibem', TEI[o, o, v, v], t2)
+        term4 = contract('ibem,je->ibjm', term4a, t1)
+        tau = 0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1) #-contract('ib,ja->ijab', t1, t1)
+        term5 = -contract('ibef,jmef->ibjm', TEI[o, v, v, v], tau)
+        term6 = contract('inem,jneb->ibjm', TEI[o, o, v, o], t2)
+        Wibjm = term1 + (term2 + term3 + term4 + term5 + term6)
+    
+
+#########################################
+        nmo = 2*self.nmo
+        ndocc = 2*self.ndocc
+        #tIbjA[R]
+        for p in range(ndocc):
+            for q in range(ndocc):
+                for r in range(nmo-ndocc):
+                    for s in range(nmo-ndocc):
+                        if p % 2 == s % 2 == 0 and q % 2 == r % 2 == 1:
+                            pass
+                        elif p % 2 == s % 2 == 1 and q % 2 == r % 2 == 0:
+                            pass
+                        else:
+                            t2[p][q][r][s] = 0
+
+#print("This is T2")
+#self.print_2(t2)
+
+        nmo = 2*self.nmo
+        ndocc = 2*self.ndocc
+        #tIbjA[R]
+        t2value1 = t2
+        for i in range(ndocc):
+            for j in range(ndocc):
+                for a in range(0, nmo-ndocc, 2):
+                    for b in range(0, nmo-ndocc, 2):
+                        x =2+2
+                        t2value1[i, j,    a,   b] = t2value1[i, j, a+1, b+1]
+                        t2value1[i, j,  a+1,   b] = t2value1[i, j,   a, b+1]
+                        t2value1[i, j,    a, b+1] = t2value1[i, j, a+1,   b]
+                        t2value1[i, j,  a+1, b+1] = t2value1[i, j,   a,   b]
+        t2value2 = t2
+        for i in range(0,ndocc,2):
+            for j in range(0, ndocc,2):
+                for a in range(nmo-ndocc):
+                    for b in range(nmo-ndocc):
+                        t2value2[i, j, a, b] = t2value2[i+1, j, a, b]
+                        t2value2[i+1, j, a, b] = t2value2[i, j,   a, b]
+                        t2value2[i, j, a, b] = t2value2[i+1, j, a,   b]
+                        t2value2[i+1, j, a, b] = t2value2[i, j,   a,   b]
+
+
+        nmo = 2*self.nmo
+        ndocc = 2*self.ndocc
+        #D 2<ij|ab> - <ij|ba>
+        #<alpha beta | alpha beta >
+        
+        for i in range(ndocc):
+            for j in range(ndocc):
+                for a in range(nmo-ndocc):
+                    for b in range(nmo-ndocc):
+                        if i % 2 == a % 2 == 1 and j % 2 == b % 2 == 1:
+                            value1 = 0;
+                        elif i % 2 == a % 2 == 0 and j % 2 == b % 2 == 0:
+                            value1 =0;
+                        else:
+                            value1 = -2.0*t2[j,i,a,b];
+                        
+                        if i % 2 == j % 2 == 0 and b % 2 == a % 2 == 0:
+                            value2 = 0;
+                        elif i % 2 == j % 2 == 1 and b % 2 == a % 2 == 1:
+                            value2 =0;
+                        else:
+                            value2 = t2[i,j,a,b];
+                            
+                            t2[i,j,a,b]  = value1 - value2
+
+
+
+
+
+#print("This is TEI")
+        #self.print_2(t2.real)
+    
+
+
+#print t2[8,9,7,6].real
+#print t2[5,6,10,5].real
+        for p in range(ndocc):
+            for q in range(ndocc):
+                for r in range(nmo-ndocc):
+                    for s in range(nmo-ndocc):
+                        if abs(t2value2[p,q,r,s].real) > 0.00005:
+                            pass
+#print p,q,r,s, t2value2[p,q,r,s].real
+#3   4   3   4        -0.0534634916
+#2   2   4   6         0.0162344193
+
+#3   4   3   4      -0.0534634916
+#2   2   4   6         0.0111217186
+
+#8 9 6 7 -0.053463491554
+
+
+#7 4 5 10 -0.0111217186487
+#5 6 11 4 -0.0111217186487
+#5 6 10 5 -0.0111217186487
+#7 4 4 11 -0.0111217186487
+
+
+#4 7 5 10 -0.0162344193397
+#5 6 4 11 -0.01623441933977
+#6 5 11 4 -0.0162344193397
+#7 4 10 5 -0.0162344193397
 
 ####################################################################
 #
@@ -850,6 +1143,7 @@ class CCSD_Helper(object):
         return total
 ################################################################
 
+    
     # Build Woooo 
     def LSWmnij(self, t1, t2, F):
         v = self.vir
@@ -1053,7 +1347,7 @@ class CCSD_Helper(object):
         sort_t1 = sorted(t1_tmp, reverse=True)
         for x in range(len(sort_t1)-1):
             
-            if (round(sort_t1[x], 7) ==0e7 or round(sort_t1[x+1], 10) == round(sort_t1[x],10)):
+            if (round(sort_t1[x], 10) ==0e10 or round(sort_t1[x+1], 10) == round(sort_t1[x],10)):
                  
                 pass
             else:
