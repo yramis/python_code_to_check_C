@@ -430,23 +430,23 @@ class CCSD_Helper(object):
 
 
 
-        term1Wabef = 0.5*TEI[v, v, v, v].copy() #
-        term2Wabef = -contract('emab,mf->efab', TEI[v, o, v, v], t1) #
-        tau = 0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1)
-        term3Wabef = contract('nmab,nmef->efab', TEI[o, o, v, v], tau) #
-        Wabef = term1Wabef + term2Wabef + term3Wabef
+        #term1Wabef = 0.5*TEI[v, v, v, v].copy() #
+        #term2Wabef = -contract('emab,mf->efab', TEI[v, o, v, v], t1) #
+        #tau = 0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1)
+        #term3Wabef = contract('nmab,nmef->efab', TEI[o, o, v, v], tau) #
+        #Wabef = term1Wabef + term2Wabef + term3Wabef
         #Wabef = self.LSWabef(t1, t2, Fa)
         Fme = self.Fme(t1, t2, Fa)
     
-        term1 = 0.5*TEI[v, v, v, o].copy()#
-        term2 = 0.5*contract('na,mnef->efam', Fme, t2)#
-        term3 = contract('efab,mb->efam', Wabef, t1)
-        term4a = -TEI[o, v, v, o].copy() + contract('jnab,nmfb->jfam', TEI[o, o, v, v], t2)#
-        term4 = contract('jfam,je->efam', term4a, t1)#
-        tau =0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1) #- contract('ib,ja->ijab', t1, t1)
-        term5 = contract('jnam,jnef->efam', TEI[o, o, v, o], tau) #
-        term6 = -contract('jfab,jmeb->efam', TEI[o, v, v, v], t2) #
-        Wefam = term1 + (term2 + term3 + term4 + term5 + term6) #+ extra
+        #term1 = 0.5*TEI[v, v, v, o].copy()#
+        #term2 = 0.5*contract('na,mnef->efam', Fme, t2)#
+        #term3 = contract('efab,mb->efam', Wabef, t1)
+        #term4a = -TEI[o, v, v, o].copy() + contract('jnab,nmfb->jfam', TEI[o, o, v, v], t2)#
+        #term4 = contract('jfam,je->efam', term4a, t1)#
+        #tau =0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1) #- contract('ib,ja->ijab', t1, t1)
+        #term5 = contract('jnam,jnef->efam', TEI[o, o, v, o], tau) #
+        #term6 = -contract('jfab,jmeb->efam', TEI[o, v, v, v], t2) #
+        #Wefam = term1 + (term2 + term3 + term4 + term5 + term6) #+ extra
 
 
 
@@ -455,7 +455,7 @@ class CCSD_Helper(object):
 
         #Check Wabei or Wefam
         # Term I
-        term1 = TEI[v, v, v, o].copy()
+        term1 = -TEI[v, v, v, o].copy()
         #term1 = 0.5*TEI[v, v, v, o].copy()
         
         # Term II
@@ -463,11 +463,11 @@ class CCSD_Helper(object):
         
         #term2 = contract('na,mnef->efam', Fme, t2)
         #term2 = contract('me,miab->abei', Fme.copy(), t2)
-        term2 = contract('na,mnef->efam', Fme.copy(), t2.copy())
+        term2 = -contract('na,mnef->efam', Fme.copy(), t2.copy())
         
         # Term IIIa
         #+ t(i,f) <ab||ef>
-        term3a = contract('abef,if->abei', TEI[v, v, v, v], t1)
+        term3a = -contract('abef,if->abei', TEI[v, v, v, v], t1)
         #term3a = contract('efab,mb->efam', 0.5*TEI[v, v, v, v].copy(), t1)
         
         
@@ -475,7 +475,7 @@ class CCSD_Helper(object):
         #+ 1/2 t(mn,ab) <mn||ef> t(i,f)              + 1/2 P(ab) t(m,a) t(n,b) <mn||ef> t(i,f)
         #+ 1/2 t(mn,ab) <mn||ei>                     + 1/2 P(ab) t(m,a) t(n,b) <mn||ei>
         tau = t2 + contract('ia,jb->ijab', t1, t1) - contract('ib,ja->ijab', t1, t1)
-        term4a = -0.5*contract('mnab,mnie->abei', tau, Wmina)
+        term4a = 0.5*contract('mnab,mnie->abei', tau, Wmina)
         
         
         #tau =0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1)
@@ -488,10 +488,9 @@ class CCSD_Helper(object):
             
         #Term IIIb + V
         #- P(ab) t(i,f) t(m,b) <am||ef> + P(ab) t(mi,fb) <am||ef>   IIIB + V
-        tau = t2 + contract('ia,jb->ijab', t1, t1)
-        term5a = -contract('imfb,amef->abei', tau, TEI[v, o, v, v])
+        tau = t2 + contract('ia,jb->ijab', t1, t1) #-  contract('ib,ja->ijab', t1, t1)
+        term5a = contract('imfb,amef->abei', tau, TEI[v, o, v, v])
         term5 = term5a - term5a.swapaxes(0, 1) #adding in this step doesn't matchpsi4
-        
 
 
         #term5b = -contract('emab,mf->efab', TEI[v, o, v, v], t1)
@@ -506,65 +505,29 @@ class CCSD_Helper(object):
         #- P(ab) t(m,a) <mb||ei> - P(ab) t(m,a) t(ni,fb) <mn||ef>
         Zeimb = contract('mnef,nifb->eimb', TEI[o, o, v, v], t2)
         Zeimb = Zeimb + TEI[v, o, o, v].copy()
-        term6a = -contract('eimb,ma->abei', Zeimb, t1)
-        term6 = 0*term6a - term6a.swapaxes(0,1)
+        term6a = contract('eimb,ma->abei', Zeimb, t1)
+        #term6 = 0*term6a - term6a.swapaxes(0,1)
         #print("This is term6a[R]")
         #self.print_2(term6a.real)
 
-
-
         Zeiam = contract('mnef,niaf->eiam', TEI[o, o, v, v], t2)
         Zeiam = Zeiam + TEI[v, o, v, o].copy()
-        term6b = -contract('eiam,mb->abei', Zeiam.real, t1.real)
+        term6b = contract('eiam,mb->abei', Zeiam, t1)
 
-        Wabei = term1 + term2 + term3a + term4a + term5a + term6a + term6b
+        Wabei = -(term1 + term2 + term3a + term4a + term5a  + term6a + term6b)
 
         print("Wabei Real")
-        self.print_2( Wabei.real)
+        self.print_2(Wabei.real)
+        print("Wabei Imag")
+        self.print_2(Wabei.imag)
 
-
-        print("term6")
-        self.print_2(term6b.real)
-
-
-
-
-
-
-        term6a = contract('ma,nifb,mnef->abei', t1, t2, TEI[o, o, v, v])
-        term6a = term6a + contract('ma,mbei->abei',t1, TEI[o, v, v, o])
-        term6 = term6a - term6a.swapaxes(0,1)
-        #term6 = contract('ma,eimb->abei',t1, TEI[v, o, o, v])
-
-        term6a = -TEI[o, v, v, o].copy() + contract('jnab,nmfb->jfam', TEI[o, o, v, v], t2)
-        term6 = contract('jfam,je->efam', term6a, t1)
-
-#print("This is Wefam")
-#self.print_2(term1 + term2.real + term3a.real + term4a.real + term5a.real)
-        #self.print_2(-term6.real)
-
-        #print("This is tijab")
-        #print shape(t2.real)
-        #self.print_2(t2.real)
-        
-        #test = contract('efab,mb->efam', Wefam, lam2)
-
-#print("This is lam2[R]")
-#lam2 = 2.0*lam2 - contract('ijab->ijba',lam2)
-#self.print_2(lam2.real)
-        
-        
-        #Wefam = self.LRWefam(t1, t2, Fa)
-        Wefam = (term1 + term2.real + term3a.real + term4a.real + term5.real + term6.real)
-        term = contract('efam,imef->ia', Wefam.real, lam2.real)
+        term = 0.5*contract('efam,imef->ia', Wabei.real, lam2.real)
+        lam1_rhs = lam1_rhs + term
         print("This is Lam2 * Wefam")
         self.print_2(term.real)
-
-        Wefam = self.LRWefam(t1, t2, Fa)
-        #Wefam = term1 + term2.real + term3a.real + term4a.real + term5.real + term6a.real
-        term = contract('efam,imef->ia', Wefam.real, lam2.real)
-        print("This is Lam2 * Wefam")
-        self.print_2(term.real)
+        lam2b = contract('ijab->ijba',lam2)
+        print("This is lam2.real")
+        self.print_2( 0.5*lam2b.real)
 
 
 
