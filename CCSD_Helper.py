@@ -10,6 +10,7 @@
 #####################################################################
 import sys
 import os
+from copy import deepcopy
 import numpy as np
 import cmath
 import pandas as pd
@@ -49,6 +50,7 @@ class CCSD_Helper(object):
         self.ndocc =int(sum(mol.Z(A) for A in range(mol.natom())) / 2)
       
         self.C = self.wfn.Ca()
+        #self.C = self.wfn.Ca_subset("AO", "ALL")
         V = np.asarray(self.mints.ao_potential())
         T = np.asarray(self.mints.ao_kinetic())
         self.H = T + V
@@ -58,11 +60,41 @@ class CCSD_Helper(object):
         #MO energies
         self.eps = np.asarray(self.wfn.epsilon_a()).repeat(2, axis=0)
         #self.TEI_MO = np.asarray(self.mints.mo_spin_eri(self.C, self.C))
-        self.TEI = self.TEI_MO()
+        #self.TEI = self.TEI_MO()
+        self.TEI = np.asarray(self.mints.ao_eri())
 ###############Setup the Fock matrix and TEIs #####################
     def TEI_MO(self, C=None):
         if C is None: C = self.C
+        Ca = np.asarray(self.C)
+        TEI_AO = self.TEI
+        nmo = self.nmo
+#        for i in range (nmo):
+#            for j in range(nmo):
+#                for k in range(nmo):
+#                    for l in range(nmo):
+#                        for p in range (nmo):
+#                            for q in range(nmo):
+#                                for r in range(nmo):
+#                                    for s in range(nmo):
+#                                        TEI_MO[i, j, k, l] +=  C[i, p] * C[j, q] * TEI_AO[p, q, r, s]* C[r, k] * C[s,l]
+    
+        TEI_MO = (np.transpose(Ca)).dot(TEI_AO).dot(Ca)
+        TEI = np.zeros(shape=(2*nmo, 2*nmo, 2*nmo, 2*nmo)) #,dtype=np.complex
+        for p in range (0,2*nmo,1):
+            for q in range(0,2*nmo,1):
+                for r in range(0,2*nmo,1):
+                    for s in range(0,2*nmo,1):
+
+                        value1 = TEI_MO[p/2, r/2, q/2, s/2] * (p %2 == r%2) * (q %2 == s%2)
+    
+                        value2 = TEI_MO[p/2, s/2, q/2, r/2] * (p %2 == s%2) * (q %2 == r%2)
+ 
+                        TEI[p, q, r, s] = (value1 - value2)
         return np.asarray(self.mints.mo_spin_eri(C, C))
+                        #return TEI
+    
+    
+    
 
 
 
@@ -331,7 +363,7 @@ class CCSD_Helper(object):
 
 
 
-
+##################################-------------------------------------->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         #Check that the t1 t1 term is the one that is slightly different by
         #taking my T2 checked equations and then subtracting that Wmbej t1t1 term.
         t2_rhs = self.T2eq_rhs(t1, t2, Fa)
@@ -515,19 +547,103 @@ class CCSD_Helper(object):
         term6b = contract('eiam,mb->abei', Zeiam, t1)
 
         Wabei = -(term1 + term2 + term3a + term4a + term5a  + term6a + term6b)
+        
+        #print("This is lam2.real")
+        #self.print_2(lam2.real)
+        #print("Wabei Real")
+        #self.print_2(Wabei.real)
+        #print("Wabei Imag")
+        #self.print_2(Wabei.imag)
 
-        print("Wabei Real")
-        self.print_2(Wabei.real)
-        print("Wabei Imag")
-        self.print_2(Wabei.imag)
+##################################-------------------------------------->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        #Come back and match 2L2 -L2 to match L1 contribution
 
-        term = 0.5*contract('efam,imef->ia', Wabei.real, lam2.real)
-        lam1_rhs = lam1_rhs + term
-        print("This is Lam2 * Wefam")
-        self.print_2(term.real)
-        lam2b = contract('ijab->ijba',lam2)
-        print("This is lam2.real")
-        self.print_2( 0.5*lam2b.real)
+        nmo = 2*self.nmo
+        ndocc = 2*self.ndocc
+        DL2 = lam2.copy()
+        DDL2 = lam2.copy()
+        #D <ij|ab> (ia,bj)
+        #<alpha beta | alpha beta >
+        for i in range(ndocc):
+            for j in range(ndocc):
+                for a in range(nmo-ndocc):
+                    for b in range(nmo-ndocc):
+                        if (i % 2 == b % 2 == 1) * (j % 2 == a % 2 == 0):
+                            pass
+                        else:
+                            DL2[i,j,a,b] = 0
+                        
+                        if (i % 2 == b % 2 == 0) * (j % 2 == a % 2 == 1):
+                            pass
+                        else:
+                            DDL2[i,j,a,b] = 0
+                        
+        for i in range(ndocc):
+            for e in range(nmo-ndocc):
+                for a in range(nmo-ndocc):
+                    for b in range(nmo-ndocc):
+                        if (a % 2 == e % 2 == 0) * (b % 2 == i % 2 == 1):
+                            #Wabei[a,b,e,i] = Wabei[a,b,e,i]
+                            pass
+                        else:
+                            #Wabei[a,b,e,i]  = 0
+                            pass
+        
+    
+        term = contract('efam,imef->ia', Wabei, 2.0*DL2) - contract('efam,imfe->ia', Wabei, DDL2)
+        lam1_rhs = lam1_rhs - term
+        #print("This is Lam2 * Wefam")
+        #self.print_2(term.real)
+        
+        
+        term = contract('efam,imef->ia', Wabei, lam2)
+        #print("This is Lam2 * Wefam")
+        #self.print_2(term.real)
+
+
+
+        #Match Wmnij
+        Wmnij = TEI[o, o, o, o]
+        Trans =contract('ijne->enij', TEI[o,o,o,v])
+        Wmnij = Wmnij + contract('mnie,je->mnij', TEI[o, o,o, v], t1)
+        Wmnij = Wmnij - contract('mnje,ie->mnij', TEI[o, o, o, v], t1)
+        tau = t2.copy() + contract('ia,jb->ijab', t1, t1) - contract('ib,ja->ijab', t1, t1)
+        Wmnij = Wmnij - 0.5*contract('ijef,mnfe->ijmn', TEI[o, o, v, v], tau)
+        
+        #print("This is Wmnij")
+        #self.print_2(Wmnij.imag)
+
+
+        #Match Wmbij
+        #Wmbij = <mb||ij> - Fme t_ij^be - t_n^b Wmnij + 1/2 <mb||ef> tau_ij^ef
+        #+ P(ij) <mn||ie> t_jn^be + P(ij) t_i^e { <mb||ej> - t_nj^bf <mn||ef> }
+
+        Wmbij = TEI[o, v, o, o].copy()
+        Wmbij = Wmbij - contract('me,ijbe->mbij', Fme, t2)
+        Wmbij = Wmbij - contract('nb,mnij->mbij', t1, Wmnij)
+        Wmbij = Wmbij + 0.5*contract('mbef,ijef->mbij', TEI[o, v, v, v], tau)
+        #Z(ME,jb)[R] = { <Mb|Ej> + t_jN^bF [2 <Mn|Ef> - <Mn|Fe>] - t_jN^Fb <Mn|Ef> }
+        Zmejb = TEI[o, v, v, o].copy()
+        Zmejb = Zmejb - contract('mnef,njbf->mbej', TEI[o, o, v, v], t2)
+        #/* W(Mb,Ij) <-- Z(ME,jb)[R] t_I^E[R] */
+        Zmejb_T1 = contract('mbei,je->mbij', Zmejb, t1)
+        Zmejb_T1 = Zmejb_T1  - contract('mbej,ie->mbij', Zmejb, t1)
+        Wmbij = Wmbij - Zmejb_T1
+        
+
+        #Matches to here--this term does not match. when I include P(ij)
+        Zmijb = contract('mnie,jnbe->mbij', TEI[o, o, o, v], t2)
+        Zmijb = Zmijb#-contract('mnje,inbe->mbij', TEI[o, o, o, v], t2)
+        Wmbij = Wmbij + Zmijb
+        
+        #Wmbij matches fully
+        print("This is Wmnij")
+        self.print_2(Wmbij.real) # +
+    
+
+
+#print("This is Zmijb")
+#self.print_2(TEI[o, o, o, v].real)
 
 
 
