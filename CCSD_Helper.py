@@ -590,13 +590,14 @@ class CCSD_Helper(object):
                             pass
         
     
-        term = contract('efam,imef->ia', Wabei, 2.0*DL2) - contract('efam,imfe->ia', Wabei, DDL2)
-        lam1_rhs = lam1_rhs - term
+        #term = contract('efam,imef->ia', Wabei, 2.0*DL2) - contract('efam,imfe->ia', Wabei, DDL2)
+        #lam1_rhs = lam1_rhs - term
         #print("This is Lam2 * Wefam")
         #self.print_2(term.real)
         
         
-        term = contract('efam,imef->ia', Wabei, lam2)
+        term = 0.5*contract('efam,imef->ia', Wabei, lam2)
+        lam1 = lam1 + term
         #print("This is Lam2 * Wefam")
         #self.print_2(term.real)
 
@@ -637,38 +638,31 @@ class CCSD_Helper(object):
         Wmbij = Wmbij + Zmijb
         
         #Wmbij matches fully
-        print("This is Wmnij")
-        self.print_2(Wmbij.real) # +
-    
+        #print("This is Wmnij")
+        #self.print_2(Wmbij.real)
+        
+        ##################################-------------------------------------->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        #Come back and match 2L2 -L2 to match L1 contribution
+        term = - 0.5*contract('iemn,mnae->ia', Wmbij, lam2)
+        #term = term + 0.25*contract('iemn,mnea->ia', Wmbij, lam2)
+        lam1_rhs = lam1_rhs + term
 
+        #print("This is Wmbij*T2")
+        #self.print_2(term.real)
 
-#print("This is Zmijb")
-#self.print_2(TEI[o, o, o, v].real)
-
-
-
-
-
-        #Check Wibjm
-        Fme = self.Fme(t1, t2, F)
-        #Build Wmnij
-        #term1 = 0.5*TEI[o, o, o, o].copy()
-        #term2 = contract('inem,je->injm', TEI[o, o, v, o], t1)
-        #tau = 0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1) #- contract('ib,ja->ijab', t1, t1)
-        #term3 = contract('inef,jmef->injm', TEI[o, o, v, v], tau)
-        #Wmnij = term1 + term2 + term3
-        Wmnij = self.LSWmnij(t1, t2, F)
-    
-        term1 = -0.5*TEI[o, v, o, o].copy()
-        term2 = 0.5*contract('ie,jmbe->ibjm', Fme, t2)
-        term3 = contract('injm,nb->ibjm', Wmnij, t1)
-        term4a = -TEI[o, v, v, o].copy() - contract('inef,nmfb->ibem', TEI[o, o, v, v], t2)
-        term4 = contract('ibem,je->ibjm', term4a, t1)
-        tau = 0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1) #-contract('ib,ja->ijab', t1, t1)
-        term5 = -contract('ibef,jmef->ibjm', TEI[o, v, v, v], tau)
-        term6 = contract('inem,jneb->ibjm', TEI[o, o, v, o], t2)
-        Wibjm = term1 + (term2 + term3 + term4 + term5 + term6)
-    
+        #match Wmbej
+        #** Wmbej = <mb||ej> + t_j^f <mb||ef> - t_n^b <mn||ej>
+        #**         - { t_jn^fb + t_j^f t_n^b } <mn||ef>
+        Wmbej = TEI[o, v, v, o].copy()
+        Wmbej = Wmbej + contract('mbef,jf->mbej', TEI[o, v, v, v], t1)
+        Wmbej = Wmbej - contract('mnej,nb->mbej', TEI[o, o, v, o], t1)
+        tau = t2 + contract('ia,jb->ijab', t1, t1)
+        Wmbej = Wmbej - contract('mnef,jnfb->mbej', TEI[o, o, v, v], tau)
+        
+        print('Wmbej')
+        self.print_2(Wmbej.imag)
+        
+        
 
 #########################################
         nmo = 2*self.nmo
