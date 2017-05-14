@@ -511,6 +511,47 @@ class CCSD_Helper(object):
 
 
 ##################check L2 equations####################################
+
+
+        #Fjm = self.LRFim(t1, t2, F)
+        #Wijmn = self.LSWmnij(t1, t2, F)
+        #Wefab = self.LSWabef(t1, t2, F)
+        #Wjebm = self.LSWieam(t1, t2, F)
+        #Wejab = self.LWfiea(t1)
+        #Wijmb = self.LWmina(t1)
+        #Fjb = self.Fme(t1, t2, F)
+        #Gbe = self.Gfe(t2, lam2)
+        #Gmj = self.Gmn(t2, lam2)
+        
+
+        #term2a = contract('eb,ijae->ijab', Feb, lam2)
+        #term2 = term2a - term2a.swapaxes(2,3)
+        #term3a = -contract('jm,imab->ijab', Fjm, lam2)
+        #term3 = term3a - term3a.swapaxes(0,1)
+        #term4 = contract('ijmn,mnab->ijab', Wijmn, lam2)
+        #term5 = contract('efab,ijef->ijab', Wefab, lam2)
+        #term6a = contract('ejab,ie->ijab', Wejab, lam1)
+        #term6 = term6a - term6a.swapaxes(0,1)
+        #term7a = -contract('ijmb,ma->ijab', Wijmb, lam1)
+        #term7 = term7a - term7a.swapaxes(2,3)
+        #term8 and 9
+        #term89a = contract('jebm,imae->ijab', Wjebm, lam2) + contract('jb,ia->ijab', Fjb, lam1)
+        #term89 = term89a
+        #term89 = term89 - term89a.swapaxes(2,3)
+        #term89 = term89 - term89a.swapaxes(0,1)
+        #term89 = term89 + term89a.swapaxes(0,1).swapaxes(2,3)
+        #term10a = contract('ijfb,af->ijab', TEI[o, o, v, v], Gbe)
+        #term10 = term10a - term10a.swapaxes(2,3)
+        #term11a = -contract('mjab,im->ijab', TEI[o, o, v, v], Gmj)
+        #term11 = term11a - term11a.swapaxes(0,1)
+        #total = term1 + term2 + term3 + term4 + (term5 + term6) + term7 + term89
+        #total = total + term10 + term11
+
+
+
+
+
+
         lam2_rhs = TEI[o, o, v, v].copy()
         #print("This is <ijab>")
         #self.print_2(lam2_rhs.real)
@@ -559,14 +600,35 @@ class CCSD_Helper(object):
         lam2_rhs = lam2_rhs - contract('mjab,im->ijab', TEI[o, o, v, v], Gmn)
         lam2_rhs = lam2_rhs + contract('mjab,im->jiab', TEI[o, o, v, v], Gmn)
         
+        #Check Fae
+        #RHS += P(ab) Lijae * Feb
+        #Fea = self.LRFea(t1, t2, Fa)
+        lam2_rhs = lam2_rhs + contract('ijab,eb->ijab', lam2, Fea)
+        lam2_rhs = lam2_rhs - contract('ijab,eb->ijba', lam2, Fea)
         
+        #Check Fmi
+        #RHS -= P(ij)*Limab*Fjm
+        lam2_rhs = lam2_rhs - contract('imab,jm->ijab', lam2, Fim)
+        lam2_rhs = lam2_rhs + contract('imab,jm->jiab', lam2, Fim)
         
-        
-        
-        
-        
-        #Wefab = Wefab
+        #Check Wjebm
+        #RHS += P(ij)P(ab)Limae * Wjebm
+        lam2_rhs = lam2_rhs + contract('imae,jebm->ijab', lam2, Wmbej)
+        lam2_rhs = lam2_rhs - contract('imae,jebm->ijba', lam2, Wmbej)
+        lam2_rhs = lam2_rhs - contract('imae,jebm->jiab', lam2, Wmbej)
+        lam2_rhs = lam2_rhs + contract('imae,jebm->jiba', lam2, Wmbej)
 
+        #Check L_ij^ab <-- P(ij) P(ab) L_i^a Fjb
+        #where Fjb = fjb + t_n^f <jn||bf>
+        #Fjb = Fa[o, v].copy() + contract('nf,jnbf->jb', t1, TEI[o, o, v, v ])
+        Fme = self.Fme(t1, t2, Fa)
+        lam2_rhs = lam2_rhs + contract('ia,jb->ijab', lam1, Fme)
+        lam2_rhs = lam2_rhs - contract('ia,jb->ijba', lam1, Fme)
+        lam2_rhs = lam2_rhs - contract('ia,jb->jiab', lam1, Fme)
+        lam2_rhs = lam2_rhs + contract('ia,jb->jiba', lam1, Fme)
+        
+
+        #lam2_rhs = self.lam2eq_rhs(t1, t2, lam1, lam2, Fa)
         #print("This is Wefab")
         #self.print_2(Wefab.real)
         print("This is L2 Wabef")
@@ -874,8 +936,10 @@ class CCSD_Helper(object):
         term1 = F[v, v].copy()
         term2 = - contract('ma,me->ea', F[o, v], t1)
         term3 = contract('emaf,mf->ea', TEI[v, o, v, v], t1)
-        tau = 0.5*t2 + contract('ia,jb->ijab', t1, t1) 
+        tau = 0.5*t2 + contract('ia,jb->ijab', t1, t1)
         term4 =-contract('mnaf,mnef->ea', TEI[o, o, v, v], tau)
+        #Fea = term1 + term2 + term3 + term4
+        
         total = term1 + term2 + term3 + term4
         return total
         
