@@ -405,8 +405,8 @@ class CCSD_Helper(object):
         tau = t2 + contract('ia,jb->ijab', t1, t1)
         Wmbej = Wmbej - contract('mnef,jnfb->mbej', TEI[o, o, v, v], tau)
         
+        
         term = contract('ieam,me->ia', Wmbej, lam1)
-        #term = term + 0.5*contract('ieam,me->ia', Wmbej.real, lam1.real)
         lam1_rhs = lam1_rhs + term
 
 
@@ -414,23 +414,14 @@ class CCSD_Helper(object):
         # Term I
         term1 = -TEI[v, v, v, o].copy()
         
-        #print("term1")
-        #self.print_2(term1.real)
-        
         # Term II
         #- Fme t(mi,ab) -1/2 F_ME[R] t_Mi^Ab[R]
         Fme = self.Fme(t1, t2, Fa)
         term2 = -contract('na,mnef->efam', Fme, t2)
-        
-        #print("term2")
-        #self.print_2(term1.real + term2.real)
 
         # Term IIIa
         #+ t(i,f) <ab||ef>
         term3a = -contract('abef,if->abei', TEI[v, v, v, v], t1)
-        
-        #print("term3")
-        #self.print_2(term1.real + term2.real + term3a.real)
 
         #Term IIIc + IIId + IV
         #+ 1/2 t(mn,ab) <mn||ef> t(i,f)              + 1/2 P(ab) t(m,a) t(n,b) <mn||ef> t(i,f)
@@ -438,10 +429,7 @@ class CCSD_Helper(object):
         tau = t2 + contract('ia,jb->ijab', t1, t1) - contract('ib,ja->ijab', t1, t1)
         term4a = 0.5*contract('mnab,mnie->abei', tau, Wmina)
         
-        #print("term4")
-        #self.print_2(term1.real + term2.real + term3a.real + term4a.real)
  
- ################-------------------->>>>>>>>>>>>>>>>>>>
         #Term IIIb + V
         #- P(ab) t(i,f) t(m,b) <am||ef> + P(ab) t(mi,fb) <am||ef>   IIIB + V
         tau = t2 + contract('ia,jb->ijab', t1, t1) #-  contract('ib,ja->ijab', t1, t1)
@@ -450,7 +438,6 @@ class CCSD_Helper(object):
         tau = t2 + contract('ia,jb->ijab', t1, t1) #- contract('ib,ja->ijab', t1, t1)
         term5b = term5a - contract('imfb,amef->baei', tau, TEI[v, o, v, v])
 
-################-------------------->>>>>>>>>>>>>>>>>>>
         #Term VI and VII
         #- P(ab) t(m,a) <mb||ei> - P(ab) t(m,a) t(ni,fb) <mn||ef>
         Zeimb = contract('mnef,nifb->eimb', TEI[o, o, v, v], t2)
@@ -460,20 +447,11 @@ class CCSD_Helper(object):
         Zeiam =  Zeiam + TEI[v, o, v, o].copy()
         term6b = contract('eiam,mb->abei', Zeiam, t1)
         Wabei = -(term1 + term2 + term3a  + term4a + term5b  + term6a + term6b)
-        
 
-#print("This is  Wabei")
-#self.print_2( Wabei.imag)
-
-
-        Webei = self.LRWefam(t1, t2, Fa)
+        #Webei = self.LRWefam(t1, t2, Fa)
         term = 0.5*contract('efam,imef->ia', Wabei, lam2)
         #term = term - 0.5*contract('efam,imef->ia', Wabei.real, lam2.real)
         lam1_rhs = lam1_rhs + term
-        print("This is Lam2 * Wefam")
-        self.print_2(lam1_rhs.real)
-        #print("This is Lam2")
-        #self.print_2(lam2.imag)
 
 
         #Match Wmnij
@@ -482,6 +460,9 @@ class CCSD_Helper(object):
         Wmnij = Wmnij - contract('mnje,ie->mnij', TEI[o, o, o, v], t1)
         tau = t2.copy() + contract('ia,jb->ijab', t1, t1) - contract('ib,ja->ijab', t1, t1)
         Wmnij = Wmnij - 0.5*contract('ijef,mnfe->ijmn', TEI[o, o, v, v], tau)
+        
+
+
 
         #Match Wmbij
         #Wmbij = <mb||ij> - Fme t_ij^be - t_n^b Wmnij + 1/2 <mb||ef> tau_ij^ef
@@ -498,31 +479,26 @@ class CCSD_Helper(object):
         Zmejb_T1 = contract('mbei,je->mbij', Zmejb, t1)
         Zmejb_T1 = Zmejb_T1  - contract('mbej,ie->mbij', Zmejb, t1)
         Wmbij = Wmbij - Zmejb_T1
-##################################-------------------------------------->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-        #Come back and match this contribution
-        Zmijb = contract('inem,jneb->mbij', TEI[o, o, v, o], t2)
-        Zmijb = Zmijb - contract('inem,jneb->mbji', TEI[o, o, v, o], t2)
-        #Wmbij = Wmbij + Zmijb
         
+        # <mn||ie> tjneb
+        #Zmijb = contract('inem,jneb->mbij', TEI[o, o, v, o], t2)
+        #Zmijb = Zmijb - contract('inem,jneb->mbji', TEI[o, o, v, o], t2)
         
-        term = - 0.5*contract('iemn,mnae->ia', Wmbij.real, lam2)
+        Zmijb = contract('mnie,jneb->mbij', TEI[o, o, o, v], t2)
+        Zmijb = Zmijb - contract('mnie,jneb->mbji', TEI[o, o, o, v], t2)
+        Wmbij = Wmbij - Zmijb
+        
+        term = - 0.5*contract('iemn,mnae->ia', Wmbij, lam2)
         lam1_rhs = lam1_rhs + term
+##################check L1 equations I used####################################
 
-        #print("This is Wmbij*T2")
-        #self.print_2(term.real)
+        lam1_rhs = self.lam_1eq_rhs(t1, t2, lam1, lam2, Fa)
+        print("This is Wmbij*T2")
+        self.print_2(lam1_rhs.real)
         
-        #print("This is Wmbij")
-        #self.print_2(Wmbij.real)
-
-
-        #print("This is lam2")
-        #self.print_2(lam2.real)
-
-        #lam1_rhs = self.lam_1eq_rhs(t1, t2, lam1, lam2, Fa)
+        print("This is Wmbij*T2")
+        self.print_2(lam1_rhs.imag)
         
-        #print('Final L1')
-        #self.print_2(lam1_rhs.real)
-
 
 ##################check L2 equations####################################
 
