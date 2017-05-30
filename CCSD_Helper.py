@@ -210,24 +210,51 @@ class CCSD_Helper(object):
         total = term1 + term2
         return total
 
-##################Build T1 equation######################################################################
+##################Build T1 equation###################################
     def Test_T1_rhs(self, t1, t2, lam1, lam2, F):
-############check T1 equation#################################################################
-        #fae = self.Fae(t1, t2, F)
+############check T1 equation########################################
         v = self.vir
         o = self.occ
         TEI = self.TEI
         
-        # Setup the t1, t2, and F #
+        # Setup for testing the t1, t2, and F #
         dipolexyz = self.Defd_dipole()
+        t1_cal = t1
+        t2_cal = t2
         t1 = t1 + 0.5*1j*t1
         t2 = t2 + 0.5*1j*t2 
         Fa =  F + dipolexyz[2] + 1j*dipolexyz[2]
         
+        #print("This is fia [R]")
+        #self.print_2(Fa[o, v].real)
+        #print("This is fia [I]")
+        #self.print_2(Fa[o, v].imag)
+
+        #print("This is fea [R]")
+        #self.print_2(Fa[v, v].real)
+        #print("This is fea [I]")
+        #self.print_2(Fa[v, v].imag)
+        
+        #print("This is fmi [R]")
+        #self.print_2(Fa[o, o].real)
+        #print("This is fmi [I]")
+        #self.print_2(Fa[o, o].imag)
+        
+        
+        #print("This is T1 [R]")
+        #self.print_2(t1.real )
+        #print("This is T1 [I]")
+        #self.print_2(t1.imag )
+        #print("This is T2 [R]")
+        #self.print_2(t2.real )
+        #print("This is T2 [I]")
+        #self.print_2(t2.imag )
+
+
+
         #check tau
         tau = t2.copy() + contract('ia,jb->ijab', t1, t1) - contract('ib,ja->ijab', t1, t1)
-        #print("This is Tau")
-        #self.print_2(tau.real)
+        
         #check taut
         taut = t2.copy() + 0.5*contract('ia,jb->ijab', t1, t1)
         
@@ -236,12 +263,11 @@ class CCSD_Helper(object):
 
         #check FAE
         FAE = self.Fae(t1, t2, Fa)
-        #self.print_2(FAE.real)
 
         #check FMI
         FMI = self.Fmi(t1, t2, Fa)
-        #self.print_2(FMI.real)
-        ############check T1 using built in expressions#################################################################
+
+        ############check T1 rhs################
         term1 = Fa[o, v].copy()
         term2 = contract('ae,ie->ia', FAE, t1)
         term3 = -contract('mi,ma->ia', FMI, t1)
@@ -251,14 +277,14 @@ class CCSD_Helper(object):
         extra3 = -0.5*contract('maef,imef->ia', TEI[o, v, v, v], t2)
         t1_rhs = term1 + term2 + term3 + term4 + extra1 + extra3 + extra2
 
-        # Check using my definition to get the converged t1 t2 values
+        # Check using the definition to get the converged t1 t2 values
         t1_rhs = self.T1eq_rhs(t1, t2, Fa)
-        #print("This is T1[R]")
-        #self.print_2(t1_rhs.real)
-        #print("This is T1[I]")
-        #self.print_2(t1_rhs.imag)
+        print("This is T1[R]")
+        self.print_2(t1_rhs.real)
+        print("This is T1[I]")
+        self.print_2(t1_rhs.imag)
         
-        ########check T2 equation###################################################################
+        ########check T2 equation##########
         #check DT2
         term1 = TEI[o, o, v, v].copy()
         
@@ -288,12 +314,12 @@ class CCSD_Helper(object):
         term3 = contract('mnef,ijef->mnij', TEI[o, o, v, v], tau)
         Wmnij_2 = term1 + term2 + term3
         t1t1 =  0.5*contract('ia,jb->ijab', t1, t1) - 0.5*contract('ib,ja->ijab', t1, t1)
+        
         #check Wmnij*tau
         temp = 0.5*contract('mnij,mnab->ijab', Wmnij, t2)
         temp += contract('mnij,mnab->ijab', Wmnij, t1t1)
         t2_rhs = t2_rhs + temp
     
- 
         #check P(ij)P(ab) tma tie <mb||je> [R] [R]
         term6tmp = contract('mbej,ie,ma->ijab', TEI[o, v, v, o], t1, t1)
         term6tmp = term6tmp +  contract('maei,je,mb->ijab', TEI[o, v, v, o], t1, t1)
@@ -316,7 +342,6 @@ class CCSD_Helper(object):
         Wabef = term1 + term2
         t2_rhs = t2_rhs + 0.5*contract('abef,ijef->ijab', Wabef, tau)
         
-
         #check Wmbej
         term1 = TEI[o, v, v, o].copy()
         term2 = -contract('mnej,nb->mbej', TEI[o, o, v, o], t1)
@@ -333,25 +358,32 @@ class CCSD_Helper(object):
         t2_rhs = t2_rhs - term6tmp.swapaxes(0, 1)
         t2_rhs = t2_rhs + term6tmp.swapaxes(0, 1).swapaxes(2, 3)
         
-
         #print("This is T2 [R]")
         #self.print_2(t2_rhs.real )
         #print("This is T2 [I]")
         #self.print_2(t2_rhs.imag )
-        ##########################Check T2 using my builg in expressions##############################
+        ##########Check T2 using the builg in expressions##############
         #check using my built in function
         t2_rhs = self.T2eq_rhs(t1, t2, Fa)
-        #print("This is T2 [R]")
-        #self.print_2(t2_rhs.real )
-        #print("This is T2 [I]")
-        #self.print_2(t2_rhs.imag )
-
+        print("This is T2 [R]")
+        self.print_2(t2_rhs.real )
+        print("This is T2 [I]")
+        self.print_2(t2_rhs.imag )
 
 #################check lam1 eq #########################################
         #setup lam1 and lam2 to check lam1 and lam2 equations
         E_test = 2.4
         lam1 = lam1.real + 1j*t1.imag*E_test
         lam2 = lam2.real + 1j*t2.imag*E_test
+
+        #print("This is L1 [R]")
+        #self.print_2(lam1.real )
+        #print("This is L1 [I]")
+        #self.print_2(lam1.imag )
+        #print("This is L2 [R]")
+        #self.print_2(lam2.real )
+        #print("This is L2 [I]")
+        #self.print_2(lam2.imag )
 
         # check Fia
         #Fia = Fa[o, v].copy()
@@ -493,10 +525,10 @@ class CCSD_Helper(object):
 ##################check L1 equations I used####################################
 
         lam1_rhs = self.lam_1eq_rhs(t1, t2, lam1, lam2, Fa)
-        print("This is Wmbij*T2")
+        print("L1 [R]")
         self.print_2(lam1_rhs.real)
         
-        print("This is Wmbij*T2")
+        print("L1 [I]")
         self.print_2(lam1_rhs.imag)
         
 
@@ -514,7 +546,7 @@ class CCSD_Helper(object):
         #first term  <ef||ab> * Lijef
         Wefab = TEI[v, v, v, v].copy()
         lam2_rhs =  lam2_rhs + 0.5*contract('efab,ijef->ijab', Wefab, lam2)
-        
+
         #second term P(ef) t_m^f <em||ab> *Lijef
         Zmfij = contract('mf,ijef->ijem',t1, lam2)
         lam2_rhs = lam2_rhs- 0.5*contract('emab,ijem->ijab', TEI[v, o, v, v], Zmfij)
@@ -526,7 +558,7 @@ class CCSD_Helper(object):
         tau = 0.25*t2 + 0.5*contract('ia,jb->ijab', t1, t1) #- 0.25*contract('ia,jb->ijab', t1, t1)
         Zijmn = contract('mnef,ijef->ijmn', tau, lam2)
         lam2_rhs = lam2_rhs + contract('mnab,ijmn->ijab', TEI[o, o, v, v], Zijmn)
-        
+
         #Check Wejab
         #RHS += P(ij) Lie[R] * Wejab[R] Weifa = self.LWfiea(t1)
         lam2_rhs = lam2_rhs + contract('ejab,ie->ijab', Weifa, lam1)
@@ -536,7 +568,7 @@ class CCSD_Helper(object):
         #RHS += -P(ab) Lma * Wijmb
         lam2_rhs = lam2_rhs - contract('ijmb,ma->ijab', Wmina, lam1)
         lam2_rhs = lam2_rhs + contract('ijmb,ma->ijba', Wmina, lam1)
-        
+
         #Check Gae
         #RHS += P(ab) <ij||ae> Gbe
         lam2_rhs = lam2_rhs + contract('ijae,be->ijab', TEI[o, o, v, v], Gef)
@@ -565,7 +597,7 @@ class CCSD_Helper(object):
         lam2_rhs = lam2_rhs - contract('imae,jebm->ijba', lam2, Wmbej)
         lam2_rhs = lam2_rhs - contract('imae,jebm->jiab', lam2, Wmbej)
         lam2_rhs = lam2_rhs + contract('imae,jebm->jiba', lam2, Wmbej)
-        
+
         #Check L_ij^ab <-- P(ij) P(ab) L_i^a Fjb
         #where Fjb = fjb + t_n^f <jn||bf>
         #Fjb = Fa[o, v].copy() + contract('nf,jnbf->jb', t1, TEI[o, o, v, v ])
@@ -580,9 +612,64 @@ class CCSD_Helper(object):
 
         ########Match using my equations#########
         lam2_rhs = self.lam2eq_rhs(t1, t2, lam1, lam2, Fa)
-        #print("This is L2 rhs")
-        #self.print_2(lam2_rhs.imag)
-
+        print("L2 [R]")
+        self.print_2(lam2_rhs.real)
+        
+        print("L2 [I]")
+        self.print_2(lam2_rhs.imag)
+    
+    ##########################CHECK THE DENSITY MATRIX#######################
+        #check  DIJ
+        term1 = contract('je,ie->ij', lam1, t1)
+        term2 = 0.5*contract('jmef,imef->ij', lam2, t2)
+        DIJ = -(term1 + term2)
+        #print("DIJ [R]")
+        #self.print_2(term2.real)
+    
+    #####################CHECK RUNGE KUTTA T1 ########################################
+        t1 = t1_cal
+        t2 = t2_cal
+        E0= 0.8
+        t=0.5
+        w0=2.05
+        dt = 0.02
+        def Vt(t):
+            mu = self.Defd_dipole()
+            return -E0*cmath.exp(1j*w0*2.0*np.pi*t)*mu[2]
+        #print("This is Vt", Vt(t))
+        
+        # Setup for testing the t1, t2, and F #
+        E0 = 0.8
+        dipolexyz = self.Defd_dipole()
+        t1 = t1 + 0.5*1j*t1
+        t2 = t2 + 0.5*1j*t2
+        k1 = self.T1eq_rhs(t1, t2, F + Vt(t))
+        k2 = self.T1eq_rhs(t1 + dt/2.0*k1, t2, F + Vt(t + dt/2.0))
+        k3 = self.T1eq_rhs(t1 + dt/2.0*k2, t2, F + Vt(t + dt/2.0))
+        k4 = self.T1eq_rhs(t1 + dt*k3, t2, F + Vt(t + dt))
+        newt1 = dt/6.0*(k1 + 2.0*k2 + 2.0*k3 + k4)
+    
+    
+        k1 = self.T2eq_rhs(t1, t2, F + Vt(t))
+        k2 = self.T2eq_rhs(t1, t2 + dt/2.0*k1, F + Vt(t + dt/2.0))
+        k3 = self.T2eq_rhs(t1, t2 + dt/2.0*k2, F + Vt(t + dt/2.0))
+        k4 = self.T2eq_rhs(t1, t2 + dt*k3,  F + Vt(t + dt))
+        newt2 = dt/6.0*(k1 + 2.0*k2 + 2.0*k3 + k4)
+        print ("RK k3 T2[R]")
+        self.print_2(t2.real - newt2.imag)
+        print ("RK k3 T2[I]")
+        self.print_2(t2.imag + newt2.real)
+        #print ("RK T1[R]")
+        #self.print_2(t2.real)
+        #print ("RK T1[I]")
+        #self.print_2(t2.imag)
+    
+    
+    
+    
+    
+    
+    
 ####################################################################
 #
 #
@@ -1867,7 +1954,7 @@ class CCSD_Helper(object):
         #        ##Electric field, it is in the z-direction for now      
         def Vt(t):
             mu = self.Defd_dipole()
-            
+
             return -A*mu[2] #*np.sin(2*np.pi*w0*t)*np.exp(-t*t/5.0)   
         t = t0
         i=0
@@ -1931,3 +2018,64 @@ class CCSD_Helper(object):
         #self.Save_data(F, t1, t2, lam1, lam2, data, timing, restart)
         #self.Save_data(F, t1min, t2min, L1min, L2min, data, timing, restart)
 #self.Save_parameters(w0, A, t0, t-dt, dt, precs, t1.shape[0], t1.shape[1])
+
+
+
+
+
+
+
+
+
+
+
+#rhs_L1(int L_irr, double E0_Real, double E0_Imag)
+#rhs_L2(int L_irr, double E0_Real, double E0_Imag)
+
+
+#L1_plus_delta_L1(int L_irr)
+#L2_plus_delta_L2(int L_irr)
+
+
+#init_io_L1()
+#exit_io_L1()
+#init_io_L2()
+#exit_io_L2()
+#init_io_onepdm()
+#exit_io_onepdm()
+
+#RK_TO_RHS_io_L1(int L_irr)
+#RK_TO_RHS_io_L2(int L_irr)
+
+#RHS_to_RK_io_L1(int L_irr)
+#RHS_to_RK_io_L2(int L_irr)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
