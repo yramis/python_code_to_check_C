@@ -2,17 +2,18 @@ import sys
 import os
 sys.path.insert(1,'./..')
 #sys.path.append(os.environ['HOME']+'/Desktop/workspace/psi411/psi4/objdir/stage/usr/local/lib')
-sys.path.append('/usr/local/psi4/bin')
-sys.path.append('/usr/local/psi4/lib')
-sys.path.append(os.environ['HOME']+'/miniconda2/lib/python2.7/site-packages')
-sys.path.append('/home/rglenn/blueridge/buildpsi/lib')
+#sys.path.append('/usr/local/psi4/bin')
+#sys.path.append('/usr/local/psi4/lib')
+#sys.path.append(os.environ['HOME']+'/miniconda2/lib/python2.7/site-packages')
+#sys.path.append('/home/rglenn/blueridge/buildpsi/lib')
 import cmath
 import psi4 as psi4
 import csv
 #from opt_einsum import contract
 from CCSD_Calculator import *
 #if os.environ['SYSNAME']=='blueridge':
-psi4.core.set_memory(int(62e9), False) #blueridge
+psi4.set_memory("5 GB")
+#psi4.core.set_memory(int(62e9), False) #blueridge
 #psi4.core.set_memory(int(3.5e9), False) 
 
 timeout = float(sys.argv[1])/60

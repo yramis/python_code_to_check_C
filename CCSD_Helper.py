@@ -14,9 +14,9 @@ from copy import deepcopy
 import numpy as np
 import cmath
 import pandas as pd
-sys.path.append(os.environ['HOME']+'/Desktop/workspace/psi411/psi4/objdir/stage/usr/local/lib')
-sys.path.append('/home/rglenn/blueridge/buildpsi/lib')
-sys.path.append('/home/rglenn/newriver/buildpython/pandas/pandas')
+#sys.path.append(os.environ['HOME']+'/Desktop/workspace/psi411/psi4/objdir/stage/usr/local/lib')
+#sys.path.append('/home/rglenn/blueridge/buildpsi/lib')
+#sys.path.append('/home/rglenn/newriver/buildpython/pandas/pandas')
 from pandas import *
 import psi4 as psi4
 sys.path.append(os.environ['HOME']+'/miniconda2/lib/python2.7/site-packages')
@@ -621,10 +621,79 @@ class CCSD_Helper(object):
     ##########################CHECK THE DENSITY MATRIX#######################
         #check  DIJ
         term1 = contract('je,ie->ij', lam1, t1)
-        term2 = 0.5*contract('jmef,imef->ij', lam2, t2)
+        term2 = 0.5*contract('mjea,miea->ij', lam2, t2)
         DIJ = -(term1 + term2)
+        
+        term1 = contract('na,nb->ab', t1, lam1)
+        term2 = 0.5*contract('mnea,mneb->ab', t2, lam2)
+        DAB = (term1 + term2)
+        
+        term1 = t1
+        #DIA += timae[R] Lme[R]
+        term2 = contract('miea,me->ia', t2, lam1)
+        #DIA += -tie tma Lme
+        Zim = contract('ie,me->im', t1, lam1)
+        term2 = term2 - contract('im,ma->ia', Zim, t1)
+        #DIA += -1/2 L^mnef tinef tma
+        Zim = contract('mnef,inef->mi', lam2, t2)
+        term3 = -0.5*contract('mi,ma->ia', Zim, t1)
+        #ZAE[R] = tmnaf Lmnef
+        Zae = contract('mnaf,mnef->ae', t2, lam2)
+        term3 = term3 -0.5*contract('ae,ie->ia', Zae, t1)
+        DIA = term1  + term2 + term3
+
+        DAI = lam1
+
+        #Build the four blocks of the density matrix
+        DIA = self.Dai(t1, t2, lam1, lam2)
+        DAI = lam1
+        DAB = self.Dab(t1, t2, lam1, lam2)
+        DIJ = self.Dij(t1, t2, lam1, lam2)
+        
         #print("DIJ [R]")
-        #self.print_2(term2.real)
+        #self.print_2(DIJ.real)
+        #print("DIJ [I]")
+        #self.print_2(DIJ.imag)
+        
+        #print("DAB [R]")
+        #self.print_2(DAB.real)
+        #print("DAB [I]")
+        #self.print_2(DAB.imag)
+        
+        #print("DIA [R]")
+        #self.print_2(DIA.real)
+        #print("DIA [I]")
+        #self.print_2(DIA.imag)
+     
+        #print("DAI [R]")
+        #self.print_2(DAI.real)
+        #print("DAI [I]")
+        #self.print_2(DAI.imag)
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        dipolexyz = self.Defd_dipole()
+        
+        
+        
+        
+        
+        
+        
+        
+
+
+        #print("Z [R]")
+        #self.print_2(Zim.real)
+        #print("Z [I]")
+        #self.print_2(Zim.imag)
     
     #####################CHECK RUNGE KUTTA T1 ########################################
         t1 = t1_cal
@@ -655,10 +724,10 @@ class CCSD_Helper(object):
         k3 = self.T2eq_rhs(t1, t2 + dt/2.0*k2, F + Vt(t + dt/2.0))
         k4 = self.T2eq_rhs(t1, t2 + dt*k3,  F + Vt(t + dt))
         newt2 = dt/6.0*(k1 + 2.0*k2 + 2.0*k3 + k4)
-        print ("RK k3 T2[R]")
-        self.print_2(t2.real - newt2.imag)
-        print ("RK k3 T2[I]")
-        self.print_2(t2.imag + newt2.real)
+        #print ("RK k3 T2[R]")
+        #self.print_2(t2.real - newt2.imag)
+        #print ("RK k3 T2[I]")
+        #self.print_2(t2.imag + newt2.real)
         #print ("RK T1[R]")
         #self.print_2(t2.real)
         #print ("RK T1[I]")
@@ -1387,6 +1456,10 @@ class CCSD_Helper(object):
             temp = temp*np.tile(np.identity(2),(nmo,nmo))
             dipoles_xyz.append(temp)
         return dipoles_xyz
+    
+    
+
+    
     
     #Build Dvv 
     def Dij(self, t1, t2, lam1, lam2):

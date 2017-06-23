@@ -13,10 +13,10 @@
 import sys
 import os
 sys.path.insert(0,'./..')
-sys.path.append('/Users/silver/Desktop/workspace/python_RTDHF/ps411/myscf_pluginUHF')
-sys.path.append('$HOME/Desktop/workspace/psi411/psi4/objdir/stage/psi4-build/bin/psi4')
-sys.path.append(os.environ['HOME']+'/Desktop/workspace/psi411/psi4/objdir/stage/usr/local/lib')
-sys.path.append('/home/rglenn/blueridge/buildpsi/lib')
+#sys.path.append('/Users/silver/Desktop/workspace/python_RTDHF/ps411/myscf_pluginUHF')
+#sys.path.append('$HOME/Desktop/workspace/psi411/psi4/objdir/stage/psi4-build/bin/psi4')
+#sys.path.append(os.environ['HOME']+'/Desktop/workspace/psi411/psi4/objdir/stage/usr/local/lib')
+#sys.path.append('/home/rglenn/blueridge/buildpsi/lib')
 import cmath
 import psi4 as psi4
 import numpy as np
