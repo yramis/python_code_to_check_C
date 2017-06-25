@@ -279,10 +279,10 @@ class CCSD_Helper(object):
 
         # Check using the definition to get the converged t1 t2 values
         t1_rhs = self.T1eq_rhs(t1, t2, Fa)
-        print("This is T1[R]")
-        self.print_2(t1_rhs.real)
-        print("This is T1[I]")
-        self.print_2(t1_rhs.imag)
+        #print("This is T1[R]")
+        #self.print_2(t1_rhs.real)
+        #print("This is T1[I]")
+        #self.print_2(t1_rhs.imag)
         
         ########check T2 equation##########
         #check DT2
@@ -365,14 +365,16 @@ class CCSD_Helper(object):
         ##########Check T2 using the builg in expressions##############
         #check using my built in function
         t2_rhs = self.T2eq_rhs(t1, t2, Fa)
-        print("This is T2 [R]")
-        self.print_2(t2_rhs.real )
-        print("This is T2 [I]")
-        self.print_2(t2_rhs.imag )
+        #print("This is T2 [R]")
+        #self.print_2(t2_rhs.real )
+        #print("This is T2 [I]")
+        #self.print_2(t2_rhs.imag )
 
 #################check lam1 eq #########################################
         #setup lam1 and lam2 to check lam1 and lam2 equations
         E_test = 2.4
+        lam1_cal = lam1
+        lam2_cal = lam2
         lam1 = lam1.real + 1j*t1.imag*E_test
         lam2 = lam2.real + 1j*t2.imag*E_test
 
@@ -525,11 +527,11 @@ class CCSD_Helper(object):
 ##################check L1 equations I used####################################
 
         lam1_rhs = self.lam_1eq_rhs(t1, t2, lam1, lam2, Fa)
-        print("L1 [R]")
-        self.print_2(lam1_rhs.real)
+        #print("L1 [R]")
+        #self.print_2(lam1_rhs.real)
         
-        print("L1 [I]")
-        self.print_2(lam1_rhs.imag)
+        #print("L1 [I]")
+        #self.print_2(lam1_rhs.imag)
         
 
 ##################check L2 equations####################################
@@ -612,11 +614,11 @@ class CCSD_Helper(object):
 
         ########Match using my equations#########
         lam2_rhs = self.lam2eq_rhs(t1, t2, lam1, lam2, Fa)
-        print("L2 [R]")
-        self.print_2(lam2_rhs.real)
+        #print("L2 [R]")
+        #self.print_2(lam2_rhs.real)
         
-        print("L2 [I]")
-        self.print_2(lam2_rhs.imag)
+        #print("L2 [I]")
+        #self.print_2(lam2_rhs.imag)
     
     ##########################CHECK THE DENSITY MATRIX#######################
         #check  DIJ
@@ -669,17 +671,28 @@ class CCSD_Helper(object):
         #self.print_2(DAI.real)
         #print("DAI [I]")
         #self.print_2(DAI.imag)
+
         
+        #Build the correlated density matrix
+        #left_p = np.vstack((pij, pai))
+        #right_p = np.vstack((pia, pab))
+        #corr_p = np.hstack((left_p, right_p))
         
+        #Build the Hartree Fock Density matrix
+        #HF_p = self.Buildpho(F)
+        #HF_p = self.pholowdinbasis(HF_p)
         
+        #Calculate the corr dipole moment
+        #dip_xyz_corr = []
+        #for i in range(3):
+        #    temp = contract('ij,ij->', dipolexyz[i], HF_p + corr_p)
+            #temp = contract('ij,ij->ij', dipolexyz[i], HF_p + corr_p)
+            #temp = contract('ii', temp)
+        #    dip_xyz_corr.append(temp)
         
-        
-        
-        
-        
-        
-        
-        dipolexyz = self.Defd_dipole()
+
+
+#dipolexyz = self.Defd_dipole()
         
         
         
@@ -708,7 +721,6 @@ class CCSD_Helper(object):
         #print("This is Vt", Vt(t))
         
         # Setup for testing the t1, t2, and F #
-        E0 = 0.8
         dipolexyz = self.Defd_dipole()
         t1 = t1 + 0.5*1j*t1
         t2 = t2 + 0.5*1j*t2
@@ -717,27 +729,90 @@ class CCSD_Helper(object):
         k3 = self.T1eq_rhs(t1 + dt/2.0*k2, t2, F + Vt(t + dt/2.0))
         k4 = self.T1eq_rhs(t1 + dt*k3, t2, F + Vt(t + dt))
         newt1 = dt/6.0*(k1 + 2.0*k2 + 2.0*k3 + k4)
+        print ("RK T1[R]")
+        self.print_2(t1.real - newt1.imag)
+        print ("RK T1[I]")
+        self.print_2(t1.imag + newt1.real)
     
-    
+    ############################CHECK RUNGE KUTTA T2 ######################################
         k1 = self.T2eq_rhs(t1, t2, F + Vt(t))
         k2 = self.T2eq_rhs(t1, t2 + dt/2.0*k1, F + Vt(t + dt/2.0))
         k3 = self.T2eq_rhs(t1, t2 + dt/2.0*k2, F + Vt(t + dt/2.0))
         k4 = self.T2eq_rhs(t1, t2 + dt*k3,  F + Vt(t + dt))
         newt2 = dt/6.0*(k1 + 2.0*k2 + 2.0*k3 + k4)
-        #print ("RK k3 T2[R]")
-        #self.print_2(t2.real - newt2.imag)
-        #print ("RK k3 T2[I]")
-        #self.print_2(t2.imag + newt2.real)
+        print ("RK T2[R]")
+        self.print_2(t2.real - newt2.imag)
+        print ("RK T2[I]")
+        self.print_2(t2.imag + newt2.real)
         #print ("RK T1[R]")
         #self.print_2(t2.real)
         #print ("RK T1[I]")
         #self.print_2(t2.imag)
     
+        E_test = 2.4
+        #lam1 = lam1_cal
+        #lam2 = lam2_cal
+        #lam1 = lam1.real + 1j*t1.imag*E_test
+        #lam2 = lam2.real + 1j*t2.imag*E_test
+        #print "Vt", Vt(t).real, Vt(t).imag
+        k1 = self.lam_1eq_rhs(t1, t2, lam1, lam2, F + Vt(t))
+        k2 = self.lam_1eq_rhs(t1, t2, lam1 + dt/2.0*k1, lam2, F + Vt(t + dt/2.0))
+        k3 = self.lam_1eq_rhs(t1, t2, lam1 + dt/2.0*k2, lam2, F + Vt(t + dt/2.0))
+        k4 = self.lam_1eq_rhs(t1, t2, lam1 + dt*k3, lam2, F + Vt(t + dt))
+        newL1 = dt/6.0*(k1 + 2.0*k2 + 2.0*k3 + k4)
     
+        #print ("RK k1 L1[R]")
+        #self.print_2(k1.real)
+        #print ("RK k1 L1[I]")
+        #self.print_2(k1.imag)
+        #print ("RK k2 L1[R]")
+        #self.print_2(k2.real)
+        #print ("RK k2 L1[I]")
+        #self.print_2(k2.imag)
+        #print ("RK k3 L1[R]")
+        #self.print_2(k3.real)
+        #print ("RK k3 L1[I]")
+        #self.print_2(k3.imag)
+        #print ("RK k4 L1[R]")
+        #self.print_2(k4.real)
+        #print ("RK k4 L1[I]")
+        #self.print_2(k4.imag)
+        print ("RK delta L1[R]")
+        self.print_2(lam1.real - newL1.imag)
+        print ("RK delta L1[I]")
+        self.print_2(lam1.imag + newL1.real)
+
+        
+        #self.check_T1_T2_L1_L2(t1, t2, lam1, lam2, F)
+        Fb = F + Vt(t)
+        #print (" F[R]")
+        #self.print_2(Fb.real)
+        #print (" F[I]")
+        #self.print_2(Fb.imag)
     
+
+    def check_T1_T2_L1_L2(self, t1, t2, lam1, lam2, F):
+        print (" T1[R]")
+        self.print_2(t1.real)
+        print (" T1[I]")
+        self.print_2(t1.imag)
+        print (" T2[R]")
+        self.print_2(t2.real)
+        print (" T2[I]")
+        self.print_2(t2.imag)
+        print (" L1[R]")
+        self.print_2(lam1.real)
+        print (" L1[I]")
+        self.print_2(lam1.imag)
+        print (" L2[R]")
+        self.print_2(lam2.real)
+        print (" L2[I]")
+        self.print_2(lam2.imag)
     
-    
-    
+        print (" F[R]")
+        self.print_2(F.real)
+        print (" F[I]")
+        self.print_2(F.imag)
     
 ####################################################################
 #
@@ -2102,25 +2177,22 @@ class CCSD_Helper(object):
 
 
 
-#rhs_L1(int L_irr, double E0_Real, double E0_Imag)
+#
 #rhs_L2(int L_irr, double E0_Real, double E0_Imag)
 
 
-#L1_plus_delta_L1(int L_irr)
 #L2_plus_delta_L2(int L_irr)
 
 
-#init_io_L1()
-#exit_io_L1()
+
 #init_io_L2()
 #exit_io_L2()
 #init_io_onepdm()
 #exit_io_onepdm()
 
-#RK_TO_RHS_io_L1(int L_irr)
+
 #RK_TO_RHS_io_L2(int L_irr)
 
-#RHS_to_RK_io_L1(int L_irr)
 #RHS_to_RK_io_L2(int L_irr)
 
 
