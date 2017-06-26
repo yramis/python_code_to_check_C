@@ -729,10 +729,10 @@ class CCSD_Helper(object):
         k3 = self.T1eq_rhs(t1 + dt/2.0*k2, t2, F + Vt(t + dt/2.0))
         k4 = self.T1eq_rhs(t1 + dt*k3, t2, F + Vt(t + dt))
         newt1 = dt/6.0*(k1 + 2.0*k2 + 2.0*k3 + k4)
-        print ("RK T1[R]")
-        self.print_2(t1.real - newt1.imag)
-        print ("RK T1[I]")
-        self.print_2(t1.imag + newt1.real)
+        #print ("RK T1[R]")
+        #self.print_2(t1.real - newt1.imag)
+        #print ("RK T1[I]")
+        #self.print_2(t1.imag + newt1.real)
     
     ############################CHECK RUNGE KUTTA T2 ######################################
         k1 = self.T2eq_rhs(t1, t2, F + Vt(t))
@@ -740,10 +740,10 @@ class CCSD_Helper(object):
         k3 = self.T2eq_rhs(t1, t2 + dt/2.0*k2, F + Vt(t + dt/2.0))
         k4 = self.T2eq_rhs(t1, t2 + dt*k3,  F + Vt(t + dt))
         newt2 = dt/6.0*(k1 + 2.0*k2 + 2.0*k3 + k4)
-        print ("RK T2[R]")
-        self.print_2(t2.real - newt2.imag)
-        print ("RK T2[I]")
-        self.print_2(t2.imag + newt2.real)
+        #print ("RK T2[R]")
+        #self.print_2(t2.real - newt2.imag)
+        #print ("RK T2[I]")
+        #self.print_2(t2.imag + newt2.real)
         #print ("RK T1[R]")
         #self.print_2(t2.real)
         #print ("RK T1[I]")
@@ -777,10 +777,10 @@ class CCSD_Helper(object):
         #self.print_2(k4.real)
         #print ("RK k4 L1[I]")
         #self.print_2(k4.imag)
-        print ("RK delta L1[R]")
-        self.print_2(lam1.real - newL1.imag)
-        print ("RK delta L1[I]")
-        self.print_2(lam1.imag + newL1.real)
+        #print ("RK delta L1[R]")
+        #self.print_2(lam1.real - newL1.imag)
+        #print ("RK delta L1[I]")
+        #self.print_2(lam1.imag + newL1.real)
 
         
         #self.check_T1_T2_L1_L2(t1, t2, lam1, lam2, F)
@@ -789,7 +789,42 @@ class CCSD_Helper(object):
         #self.print_2(Fb.real)
         #print (" F[I]")
         #self.print_2(Fb.imag)
+        
+        k1 = self.lam2eq_rhs(t1, t2, lam1, lam2, F + Vt(t))
+        k2 = self.lam2eq_rhs(t1, t2, lam1, lam2 + dt/2.0*k1, F + Vt(t + dt/2.0))
+        k3 = self.lam2eq_rhs(t1, t2, lam1, lam2 + dt/2.0*k2, F + Vt(t + dt/2.0))
+        k4 = self.lam2eq_rhs(t1, t2, lam1, lam2 + dt*k3, F + Vt(t + dt))
+        new_L2 = dt/6.0*(k1 + 2.0*k2 + 2.0*k3 + k4)
     
+        #print ("RK k1 L2[R]")
+        #self.print_2(k1.real)
+        #print ("RK k1 L2[I]")
+        #self.print_2(k1.imag)
+        
+        #print ("RK k2 L2[R]")
+        #self.print_2(k2.real)
+        #print ("RK k2 L2[I]")
+        #self.print_2(k2.imag)
+    
+        #print ("RK k3 L2[R]")
+        #self.print_2(k3.real)
+        #print ("RK k3 L2[I]")
+        #self.print_2(k3.imag)
+        
+        #print ("RK k4 L2[R]")
+        #self.print_2(k4.real)
+        #print ("RK k4 L2[I]")
+        #self.print_2(k4.imag)
+    
+        #print ("RK delta L2[R]")
+        #self.print_2(new_L2.real)
+        #print ("RK delta L2[I]")
+        #self.print_2(new_L2.imag)
+    
+        #print ("RK L2[R]")
+        #self.print_2(lam2.real - new_L2.imag)
+        #print ("RK L2[I]")
+        #self.print_2(lam2.imag + new_L2.real)
 
     def check_T1_T2_L1_L2(self, t1, t2, lam1, lam2, F):
         print (" T1[R]")
