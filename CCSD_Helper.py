@@ -652,46 +652,56 @@ class CCSD_Helper(object):
         DAB = self.Dab(t1, t2, lam1, lam2)
         DIJ = self.Dij(t1, t2, lam1, lam2)
         
-        #print("DIJ [R]")
-        #self.print_2(DIJ.real)
-        #print("DIJ [I]")
-        #self.print_2(DIJ.imag)
+        print("DIJ [R]")
+        self.print_2(DIJ.real)
+        print("DIJ [I]")
+        self.print_2(DIJ.imag)
         
-        #print("DAB [R]")
-        #self.print_2(DAB.real)
-        #print("DAB [I]")
-        #self.print_2(DAB.imag)
+        print("DAB [R]")
+        self.print_2(DAB.real)
+        print("DAB [I]")
+        self.print_2(DAB.imag)
         
-        #print("DIA [R]")
-        #self.print_2(DIA.real)
-        #print("DIA [I]")
-        #self.print_2(DIA.imag)
+        print("DIA [R]")
+        self.print_2(DIA.real)
+        print("DIA [I]")
+        self.print_2(DIA.imag)
      
-        #print("DAI [R]")
-        #self.print_2(DAI.real)
-        #print("DAI [I]")
-        #self.print_2(DAI.imag)
+        print("DAI [R]")
+        self.print_2(DAI.real)
+        print("DAI [I]")
+        self.print_2(DAI.imag)
 
         
         #Build the correlated density matrix
-        #left_p = np.vstack((pij, pai))
-        #right_p = np.vstack((pia, pab))
-        #corr_p = np.hstack((left_p, right_p))
+        left_p = np.vstack((DIJ, DIA))
+        right_p = np.vstack((DAI, DAB))
+        
+        #left_p = np.vstack((DAB, DAI))
+        #right_p = np.vstack((DIA, DIJ))
+        
+        corr_p = np.hstack((left_p, right_p))
         
         #Build the Hartree Fock Density matrix
-        #HF_p = self.Buildpho(F)
-        #HF_p = self.pholowdinbasis(HF_p)
+        HF_p = self.Buildpho(F)
+        HF_p = self.pholowdinbasis(HF_p)
         
         #Calculate the corr dipole moment
-        #dip_xyz_corr = []
-        #for i in range(3):
-        #    temp = contract('ij,ij->', dipolexyz[i], HF_p + corr_p)
+        dip_xyz_corr = []
+        for i in range(3):
+            temp = contract('ij,ij->', dipolexyz[i],  corr_p)
             #temp = contract('ij,ij->ij', dipolexyz[i], HF_p + corr_p)
             #temp = contract('ii', temp)
-        #    dip_xyz_corr.append(temp)
+            dip_xyz_corr.append(temp)
         
-
-
+        mua = self.dipole_moment(t1, t2, lam1, lam2, F)
+        #mua = dip_xyz_corr
+        print 'mu_x real %.8e' % (mua[0].real)
+        print 'mu_x imag %.8e' % (mua[0].imag)
+        print 'mu_y real %.8e' % (mua[1].real)
+        print 'mu_y imag %.8e' % (mua[1].imag)
+        print 'mu_z real %.8e' % (mua[2].real)
+        print 'mu_z imag %.8e' % (mua[2].imag)
 #dipolexyz = self.Defd_dipole()
         
         
@@ -1677,8 +1687,8 @@ class CCSD_Helper(object):
         #Calculate the corr dipole moment
         dip_xyz_corr = []
         for i in range(3):
-            temp = contract('ij,ij->', dipolexyz[i], HF_p + corr_p)
-            #temp = contract('ij,ij->ij', dipolexyz[i], HF_p + corr_p)
+            #temp = contract('ij,ij->', dipolexyz[i], HF_p + corr_p)
+            temp = contract('ij,ij->', dipolexyz[i],  corr_p)
             #temp = contract('ii', temp)
             dip_xyz_corr.append(temp)   
         
