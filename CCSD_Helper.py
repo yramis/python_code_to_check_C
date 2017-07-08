@@ -37,7 +37,7 @@ class CCSD_Helper(object):
         #self.scf_e, self.wfn = psi4.energy('scf', return_wfn = True)
         self.mints = psi4.core.MintsHelper(self.wfn.basisset())
         self.nmo = self.wfn.nmo()
-        self.ccsd_e = psi4.energy('ccsd')
+        self.ccsd_e = psi4.energy('cc2')
         self.S = np.asarray(self.mints.ao_overlap())
         #print mol.nuclear_repulsion_energy()
         #print mol.nuclear_dipole()
@@ -62,6 +62,13 @@ class CCSD_Helper(object):
         #self.TEI_MO = np.asarray(self.mints.mo_spin_eri(self.C, self.C))
         #self.TEI = self.TEI_MO()
         self.TEI = np.asarray(self.mints.ao_eri())
+    
+    
+    
+    
+    
+    
+
 ###############Setup the Fock matrix and TEIs #####################
     def TEI_MO(self, C=None):
         if C is None: C = self.C
@@ -166,7 +173,7 @@ class CCSD_Helper(object):
 
 ############################################################       
 #                    
-#               T1 and T2-equations
+#               T1 and T2-equations (CCSD)
 #                   By R. Glenn, I used T. Daniel Crawfords equations
 #    
 #    
@@ -1139,7 +1146,7 @@ class CCSD_Helper(object):
 #    
 #     
 #        
-#                       Lambda Equations:
+#                       Lambda Equations (CCSD):
 #                       Derived by R. Glenn
 #     
 #   
@@ -1556,7 +1563,140 @@ class CCSD_Helper(object):
             else:
                 print('\t', ('% 5.10f' %  sort_lam2[x]))   
                 
-                  
+ 
+
+
+
+
+
+############################################################
+#
+#               T1 and T2-equations (CC2)
+#                   By R. Glenn, I used T. Daniel Crawfords equations
+#
+#
+#
+############################################################
+
+    
+    ########### Build T2 Equation################################
+    def T2eq_rhs_CC2(self, t1, t2, F):
+        v = self.vir
+        o = self.occ
+        TEI = self.TEI
+        
+        fae = F[v, v].copy()
+        fmi = F[o, o].copy()
+        wabef_2 = self.Wabef_2(t1 ,t2, F)
+        wmnij_2 = self.Wmnij_2(t1 ,t2, F)
+        #All terms in the T2 Equation
+        term1 = TEI[o, o, v, v].copy()
+        
+        term2tmp = fae #- 0.5 *contract('me,mb->be', fme, t1)
+        term2a = contract('be,ijae->ijab', term2tmp, t2)
+        term2 = term2a - term2a.swapaxes(2, 3) #swap ab
+        
+        term3temp = fmi #+ 0.5 *contract('me,je->mj', fme, t1)
+        term3a = -contract('mj,imab->ijab', term3temp, t2)
+        term3 = term3a - term3a.swapaxes(0, 1) #swap ij
+        
+        tau = contract('ma,nb->mnab', t1, t1) - contract('na,mb->mnab', t1, t1)
+        term44 = 0.5*contract('mnij,mnab->ijab', wmnij_2, tau)
+        term55 =  0.5*contract('abef,ijef->ijab', wabef_2, tau)
+        
+        term6tmp = - contract('mbej,ie,ma->ijab', TEI[o, v, v, o], t1, t1)
+        term6 =  term6tmp - term6tmp.swapaxes(2, 3)  - term6tmp.swapaxes(0, 1)  + term6tmp.swapaxes(0, 1).swapaxes(2, 3)
+        
+        
+        term7tmp = contract('abej,ie->ijab', TEI[v ,v, v, o], t1)
+        term7 =  term7tmp - term7tmp.swapaxes(0, 1) #swap ij
+        
+        term8tmp = -contract('mbij,ma->ijab', TEI[o, v, o, o], t1)
+        term8 =  term8tmp - term8tmp.swapaxes(2, 3) #swap ab
+        
+        total = term1 + term2 + term3 + term44 + term55 + term6 + term7 + term8
+        return total
+
+
+    #Routine for DIIS solver, builds all arrays(maxsize) before B is computed    
+    def DIIS_solver_CC2(self, t1, t2, F, maxsize, maxiter, E_min):
+            #Store the maxsize number of t1 and t2
+            T1rhs = self.T1eq_rhs(t1, t2, F)
+            T2rhs = self.T2eq_rhs_CC2(t1, t2, F)
+            t1 = self.corrected_T1(t1, T1rhs, F)
+            t2 = self.corrected_T2(t2, T2rhs, F)
+            t1stored = [t1.copy()]
+            t2stored = [t2.copy()]
+            errort1 = []
+            errort2 = []
+            
+            for n in range(1, maxsize+1):  
+                T1rhs = self.T1eq_rhs(t1, t2, F)
+                T2rhs = self.T2eq_rhs_CC2(t1, t2, F)
+                t1 = self.corrected_T1(t1, T1rhs, F)
+                t2 = self.corrected_T2(t2, T2rhs, F)
+                t1stored.append(t1.copy())
+                t2stored.append(t2.copy())
+                
+                errort1.append(t1stored[n]- t1stored[n-1])
+                errort2.append(t2stored[n]- t2stored[n-1])
+
+             # Build B
+            B = np.ones((maxsize + 1, maxsize + 1)) * -1
+            B[-1, -1] = 0
+            for z in range(1, maxiter):
+                CC2_E_old = self.CCSD_Corr_E( t1, t2, F)
+                for n in range(maxsize):
+                    for m in range(maxsize):
+                        a = contract('ia,ia->',errort1[m], errort1[n])
+                        b = contract('ijab,ijab->', errort2[m], errort2[n])
+                        B[n, m] = a + b
+    
+                # Build residual vector
+                A = np.zeros(maxsize + 1)
+                A[-1] = -1
+
+                c = np.linalg.solve(B, A)
+                
+                # Update t1 and t2 
+                t1 = 0.0*t1
+                t2 = 0.0*t2
+                for n in range(maxsize):
+                    t1 += c[n] * t1stored[n+1]
+                    t2 += c[n] * t2stored[n+1]
+
+                oldt1 = t1.copy()
+                oldt2 = t2.copy()
+                #test if converged
+                CC2_E = self.CCSD_Corr_E( t1, t2, F)
+                diff_E = CC2_E - CC2_E_old
+                if (abs(diff_E) < E_min):
+                    break
+                #update t1 and t2 list
+                T1rhs = self.T1eq_rhs(t1, t2, F)
+                T2rhs = self.T2eq_rhs_CC2(t1, t2, F)
+                t1 = self.corrected_T1(t1, T1rhs, F)
+                t2 = self.corrected_T2(t2, T2rhs, F)
+                t1stored.append(t1.copy())
+                t2stored.append(t2.copy())
+                
+                errort1.append(t1 - oldt1)
+                errort2.append(t2 - oldt2)
+                
+                print("inter =", z,  "\t", "CC2_E =", CC2_E,"diff=", diff_E)
+                del t1stored[0]
+                del t2stored[0]
+                del errort1[0]
+                del errort2[0]
+            return CC2_E, t1, t2
+
+
+
+
+
+
+
+
  ##################################################################
  #
  #
@@ -2216,8 +2356,97 @@ class CCSD_Helper(object):
 
 
 
+########################################################################
+#
+#
+#          CC2-Runge_Kutta
+#
+#
+#
+########################################################################3
+    #T2 Runge-Kutta function 
+    def ft2_CC2(self, t, dt, t1, t2, F, Vt):
+        k1 = self.T2eq_rhs_CC2(t1, t2, F + Vt(t))
+        k2 = self.T2eq_rhs_CC2(t1, t2 + dt/2.0*k1, F + Vt(t + dt/2.0))  
+        k3 = self.T2eq_rhs_CC2(t1, t2 + dt/2.0*k2, F + Vt(t + dt/2.0)) 
+        k4 = self.T2eq_rhs_CC2(t1, t2 + dt*k3,  F + Vt(t + dt)) 
+        #k1 = self.T2eq_rhs_TD(t1, t2, F, Vt(t))
+        #k2 = self.T2eq_rhs_TD(t1, t2 + dt/2.0*k1, F, Vt(t + dt/2.0))  
+        #k3 = self.T2eq_rhs_TD(t1, t2 + dt/2.0*k2, F, Vt(t + dt/2.0)) 
+        #k4 = self.T2eq_rhs_TD(t1, t2 + dt*k3,  F, Vt(t + dt)) 
+        return dt/6.0*(k1 + 2.0*k2 + 2.0*k3 + k4)
+ 
+    def Runge_Kutta_solver_CC2(self, F, t1, t2, lam1, lam2, w0, A, t0, tf, dt, timeout, precs, restart=None):
+        #Setup Pandas Data and time evolution
+       
+        data =  pd.DataFrame( columns = ('time', 'mu_real', 'mu_imag')) 
+        timing =  pd.DataFrame( columns = ('total','t1', 't2', 'l1','l2')) 
+        
+        #        ##Electric field, it is in the z-direction for now      
+        def Vt(t):
+            mu = self.Defd_dipole()
 
+            return -A*mu[2] #*np.sin(2*np.pi*w0*t)*np.exp(-t*t/5.0)   
+        t = t0
+        i=0
+        start = time.time()
+        m=1.0
+        #Do the time propagation
+        while t < tf:
+            L1min = np.around(lam1, decimals=precs) 
+            L2min = np.around(lam2, decimals=precs) 
+            dt = dt/m
+            itertime_t1 = itertime_t2 = 0
+            for n in range(int(m)):
+                t1min = np.around(t1, decimals=precs) 
+                t2min = np.around(t2, decimals=precs) 
+                itertime = time.time()
+                dt1 = -1j*self.ft1(t, dt, t1, t2, F, Vt) #Runge-Kutta
+                itertime_t1 = -itertime + time.time()
+                itertime = time.time()
+                dt2 = -1j*self.ft2_CC2(t, dt, t1, t2, F, Vt) #Runge-Kutta
+                itertime_t2 = -itertime + time.time()
+            dt = m*dt
+            itertime = time.time()
+            dL1 = 1j*self.fL1(t, dt, t1, t2, lam1, lam2, F, Vt) #Runge-Kutta
+            itertime_l1 = -itertime  + time.time()
+            itertime = time.time()
+            dL2 = 1j*self.fL2(t, dt, t1, t2, lam1, lam2, F, Vt)  #Runge-Kutta
+            itertime_l2 = -itertime  + time.time()
+            total = itertime_t1 + itertime_t2 + itertime_l1 + itertime_l2
+            timing.loc[i] = [total, itertime_t1, itertime_t2, itertime_l1, itertime_l2 ]
+            t1 = t1min + dt1
+            t2 = t2min + dt2
+            lam1 = L1min + dL1
+            lam2 = L2min + dL2
+            i += 1
+            t =t0 + i*dt
+            stop = time.time()-start
+            mua = self.dipole_moment(t1, t2, lam1, lam2, F)
+            data.loc[i] = [t, mua[2].real, mua[2].imag  ]
+            print(t, mua[2])
+            
+            if abs(stop)>0.9*timeout*60.0:
+                
+                #self.Save_data(F, t1, t2, lam1, lam2, data, timing, restart)
+                self.Save_data(F, t1min, t2min, L1min, L2min, data, timing, precs, restart)
+                self.Save_parameters(w0, A, t0, t-dt, dt, precs, t1.shape[0], t1.shape[1])
+    
+                break
+            #Calculate the dipole moment using the density matrix
 
+            
+            if abs(mua[2].real) > 100:
+                #self.Save_data(F, t1, t2, lam1, lam2, data, timing, restart)
+                self.Save_data(F, t1min, t2min, L1min, L2min, data, timing, precs, restart)
+                self.Save_parameters(w0, A, t0, t-dt, dt, precs, t1.shape[0], t1.shape[1])
+                break
+            
+        stop = time.time()
+        print("total time non-adapative step:", stop-start)
+        print("total steps:", i)
+        print("step-time:", (stop-start)/i)
+ 
 
 
 

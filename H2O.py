@@ -53,7 +53,7 @@ opt_dict = {
 #'6-31g'
 #'sto-3g'
 psi4.set_options(opt_dict)
-#psi4.property('ccsd', properties=['dipole'])
+psi4.property('cc2', properties=['dipole'])
 #psi4.property('eom-cc2', properties=['oscillator_strength'])
 psi4.core.set_output_file('output.dat', False)
 
@@ -67,4 +67,3 @@ mol= CCSD_Calculator(psi4)
 #mol.test_MP2()
 #Converged T1, T2, L1, L2 amplitudes
 mol.TDCCSD(pseudo, timeout)
-

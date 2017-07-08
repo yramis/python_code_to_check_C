@@ -50,12 +50,15 @@ class CCSD_Calculator(object):
         #TEI = np.longdouble(mol.TEI_MO())  
         v = 2*(nmo-ndocc)
         o = 2*ndocc
-        psienergy = psi4.energy('CCSD')
+        psienergy = psi4.energy('CC2')
+        
+
+        
         
 ############################################## 
 #
 #
-#           t1 and t2 Amplitudes:
+#           t1 and t2 Amplitudes (CCSD):
 #
 #
 ##################################################       
@@ -72,19 +75,19 @@ class CCSD_Calculator(object):
         E_min = 1e-15 # minimum energy to match
         
         #DIIS solver
-        CCSD_E, t1, t2 = mol.DIIS_solver(t1, t2, F, maxsize, maxiter, E_min)
+        CC2_E, t1, t2 = mol.DIIS_solver_CC2(t1, t2, F, maxsize, maxiter, E_min)
         
         #Print out the T1 and T2 amplitudes and CCSD energy
         #print "E_ccsd_psi4=", mol.ccsd_e
-        print("E_ccsd_me=", CCSD_E + scf)
-        print("difference between psi4 and me=", psienergy.real - (CCSD_E + scf))
+        print("E_ccsd_me=", CC2_E + scf)
+        print("difference between psi4 and me=", psienergy.real - (CC2_E + scf))
         mol.print_T_amp(t1, t2)
         
-        psi4.driver.p4util.compare_values(psi4.energy('CCSD'), CCSD_E+scf, 10, 'CCSD Energy')
+        psi4.driver.p4util.compare_values(psi4.energy('CC2'), CC2_E+scf, 10, 'CC2 Energy')
 ############################################## 
 #
 #
-#           lam1 and lam2 Amplitudes:
+#           lam1 and lam2 Amplitudes (CCSD):
 #
 #
 ##################################################    
@@ -111,19 +114,26 @@ class CCSD_Calculator(object):
 #
 ##################################################
         import sys
-        print dir()
+        #print dir()
             #for name in dir():
             #if not name.startswith('_'):
             #del globals()[name]
-        del maxiter, maxsize, psienergy,  MP2, E_min, CCSD_E, pseudo, pseudo_E, scf, timeout, v
-        print dir()
+       # del maxiter, maxsize, psienergy,  MP2, E_min, CC2_E, pseudo, pseudo_E, scf, timeout, v
+        #print dir()
         
 
         mol.Test_T1_rhs(t1, t2, lam1, lam2, F)
 
-
-
-
-
-
-
+        #Start parameters
+        w0 = 0.968635 #frequency of the oscillation and transition frequency
+        A = 0.005#the amplitude of the electric field
+        t0 = 0.0000 #the start time
+        tf = 0.1 #the stop time, the actual stop time is governed by the timelength of the job
+                     #Unless it completes enough steps to get to tf first. 
+        dt = 0.0001 #time step
+        precs = 8 #precision of the t1, t2, l1, l2 amplitudes
+        ####4th-order Rosenbrock "Parallel exponential Rosenbrock methods, 
+        #Vu Thai Luana, Alexander Ostermannb"
+        #mol.Rosenbrock(F, t1, t2, lam1, lam2, w0, A, t0, tf, dt, timeout, precs)   
+        ######4th-order Runge-Kutta   
+        mol.Runge_Kutta_solver_CC2(F, t1, t2, lam1, lam2, w0, A, t0, tf, dt, timeout, precs)
