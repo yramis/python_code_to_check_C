@@ -72,34 +72,8 @@ class CCSD_Helper(object):
 ###############Setup the Fock matrix and TEIs #####################
     def TEI_MO(self, C=None):
         if C is None: C = self.C
-        Ca = np.asarray(self.C)
-        TEI_AO = self.TEI
-        nmo = self.nmo
-#        for i in range (nmo):
-#            for j in range(nmo):
-#                for k in range(nmo):
-#                    for l in range(nmo):
-#                        for p in range (nmo):
-#                            for q in range(nmo):
-#                                for r in range(nmo):
-#                                    for s in range(nmo):
-#                                        TEI_MO[i, j, k, l] +=  C[i, p] * C[j, q] * TEI_AO[p, q, r, s]* C[r, k] * C[s,l]
-    
-        TEI_MO = (np.transpose(Ca)).dot(TEI_AO).dot(Ca)
-        TEI = np.zeros(shape=(2*nmo, 2*nmo, 2*nmo, 2*nmo)) #,dtype=np.complex
-        for p in range (0,2*nmo,1):
-            for q in range(0,2*nmo,1):
-                for r in range(0,2*nmo,1):
-                    for s in range(0,2*nmo,1):
-
-                        value1 = TEI_MO[p/2, r/2, q/2, s/2] * (p %2 == r%2) * (q %2 == s%2)
-    
-                        value2 = TEI_MO[p/2, s/2, q/2, r/2] * (p %2 == s%2) * (q %2 == r%2)
- 
-                        TEI[p, q, r, s] = (value1 - value2)
         return np.asarray(self.mints.mo_spin_eri(C, C))
-                        #return TEI
-    
+           
     
     
 
