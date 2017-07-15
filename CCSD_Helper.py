@@ -351,6 +351,110 @@ class CCSD_Helper(object):
         #print("This is T2 [I]")
         #self.print_2(t2_rhs.imag )
 
+
+######################check t2 eq CC2 #######################################
+########check T2 equation##########
+
+        E0= 0.8
+        t=0.5
+        w0=2.05
+        dt = 0.02
+        def Vt(t):
+            mu = self.Defd_dipole()
+            return -E0*cmath.exp(1j*w0*2.0*np.pi*t)*mu[2]
+        #check DT2
+        term1 = TEI[o, o, v, v].copy()
+    
+        Fa = F + Vt(t)
+        #check FAE_T2_build
+        term2a = contract('be,ijae->ijab', Fa[v, v], t2)
+        term2 = term2a.copy() - term2a.swapaxes(2, 3) #swap ab
+        
+        #check FMI_T2_build
+        term3a = -contract('mj,imab->ijab', Fa[o, o], t2)
+        term3 = term3a.copy() - term3a.swapaxes(0, 1) #swap ij
+        t2_rhs_cc2 = term1 + term2  + term3
+    
+        #check Wmnij
+        term1 = TEI[o, o, o, o].copy()
+        term2a = contract('mnie,je->mnij', TEI[o, o, o, v], t1)
+        term2 = term2a - term2a.swapaxes(2,3) #swap ij
+        tau = 0.5*t2 + 0.5*contract('ia,jb->ijab', t1, t1) - 0.5*contract('ib,ja->ijab', t1, t1)
+        tau = 0.5*contract('ia,jb->ijab', t1, t1) - 0.5*contract('ib,ja->ijab', t1, t1)
+        term3 = contract('mnef,ijef->mnij', TEI[o, o, v, v], tau)
+        Wmnij = term1 + term2 + term3
+        t1t1 =  0.5*contract('ia,jb->ijab', t1, t1) - 0.5*contract('ib,ja->ijab', t1, t1)
+        
+        #check Wmnij*tau
+        temp = contract('mnij,mnab->ijab', Wmnij, t1t1)
+        t2_rhs_cc2 = t2_rhs_cc2 + temp
+        
+        
+        #self.check_T1_T2_L1_L2(t1, t2, lam1, lam2, Fa);
+
+        #check P(ij)P(ab) tma tie <mb||je> [R] [R]
+        term6tmp = contract('mbej,ie,ma->ijab', TEI[o, v, v, o], t1, t1)
+        term6tmp = term6tmp +  contract('maei,je,mb->ijab', TEI[o, v, v, o], t1, t1)
+        term6tmp = term6tmp - contract('maej,ie,mb->ijab', TEI[o, v, v, o], t1, t1)
+        term6tmp = term6tmp - contract('mbei,je,ma->ijab', TEI[o, v, v, o], t1, t1)
+        t2_rhs_cc2 = t2_rhs_cc2 - term6tmp
+        
+        #check the other extra terms
+        term7tmp = contract('abej,ie->ijab', TEI[v ,v, v, o], t1)
+        term7 =  term7tmp.copy() - term7tmp.swapaxes(0, 1) #swap ij
+        term8 = -contract('mbij,ma->ijab', TEI[o, v, o, o], t1)
+        term8 += -contract('amij,mb->ijab', TEI[v, o, o, o], t1) #swap ab
+        t2_rhs_cc2 = t2_rhs_cc2 + term7 + term8
+        
+        #Check Wabef
+        term1 = TEI[v, v, v, v].copy()
+        tau = contract('ia,jb->ijab', t1, t1) - contract('ib,ja->ijab', t1, t1)
+        term2tmp= -contract('amef,mb->abef', TEI[v, o, v, v], t1)
+        term2 = term2tmp - term2tmp.swapaxes(0,1) #swap ab
+        Wabef = term1 + term2
+        t2_rhs_cc2 = t2_rhs_cc2 + 0.5*contract('abef,ijef->ijab', Wabef, tau)
+        
+        #print("This is T2 [R]")
+        #self.print_2(t2_rhs_cc2.real )
+        #print("This is T2 [I]")
+        #self.print_2(t2_rhs_cc2.imag )
+        
+        
+        #print("This is T2 [R]")
+        #self.print_2(t2_rhs.real )
+        #print("This is T2 [I]")
+        #self.print_2(t2_rhs.imag )
+        ##########Check T2 using the builg in expressions##############
+        #check using my built in function
+        t2_rhs_cc2 = self.T2eq_rhs_CC2(t1, t2, Fa)
+        #print("This is T2 [R]")
+        #self.print_2(t2_rhs_cc2.real )
+        #print("This is T2 [I]")
+        #self.print_2(t2_rhs_cc2.imag )
+
+
+
+        #################check RK T2 CC2 ####################################
+        k1 = self.T2eq_rhs_CC2(t1, t2, F + Vt(t))
+        k2 = self.T2eq_rhs_CC2(t1, t2 + dt/2.0*k1, F + Vt(t + dt/2.0))
+        k3 = self.T2eq_rhs_CC2(t1, t2 + dt/2.0*k2, F + Vt(t + dt/2.0))
+        k4 = self.T2eq_rhs_CC2(t1, t2 + dt*k3,  F + Vt(t + dt))
+        newt2 = dt/6.0*(k1 + 2.0*k2 + 2.0*k3 + k4)
+        #print("This is T2 [R]")
+        #self.print_2(k1.real )
+        #print("This is T2 [I]")
+        #self.print_2(k1.imag )
+        #print ("RK T2[R]")
+        #self.print_2(t2.real - newt2.imag)
+        #print ("RK T2[I]")
+        #self.print_2(t2.imag + newt2.real)
+
+
+
+
+
+
+
 #################check lam1 eq #########################################
         #setup lam1 and lam2 to check lam1 and lam2 equations
         E_test = 2.4
@@ -633,25 +737,25 @@ class CCSD_Helper(object):
         DAB = self.Dab(t1, t2, lam1, lam2)
         DIJ = self.Dij(t1, t2, lam1, lam2)
         
-        print("DIJ [R]")
-        self.print_2(DIJ.real)
-        print("DIJ [I]")
-        self.print_2(DIJ.imag)
+        #print("DIJ [R]")
+        #self.print_2(DIJ.real)
+        #print("DIJ [I]")
+        #self.print_2(DIJ.imag)
         
-        print("DAB [R]")
-        self.print_2(DAB.real)
-        print("DAB [I]")
-        self.print_2(DAB.imag)
+        #print("DAB [R]")
+        #self.print_2(DAB.real)
+        #print("DAB [I]")
+        #self.print_2(DAB.imag)
         
-        print("DIA [R]")
-        self.print_2(DIA.real)
-        print("DIA [I]")
-        self.print_2(DIA.imag)
+        #print("DIA [R]")
+        #self.print_2(DIA.real)
+        #print("DIA [I]")
+        #self.print_2(DIA.imag)
      
-        print("DAI [R]")
-        self.print_2(DAI.real)
-        print("DAI [I]")
-        self.print_2(DAI.imag)
+        #print("DAI [R]")
+        #self.print_2(DAI.real)
+        #print("DAI [I]")
+        #self.print_2(DAI.imag)
 
         
         #Build the correlated density matrix
@@ -816,7 +920,8 @@ class CCSD_Helper(object):
         #self.print_2(lam2.real - new_L2.imag)
         #print ("RK L2[I]")
         #self.print_2(lam2.imag + new_L2.real)
-
+    
+    
     def check_T1_T2_L1_L2(self, t1, t2, lam1, lam2, F):
         print (" T1[R]")
         self.print_2(t1.real)
@@ -839,7 +944,8 @@ class CCSD_Helper(object):
         self.print_2(F.real)
         print (" F[I]")
         self.print_2(F.imag)
-    
+ 
+
 ####################################################################
 #
 #
