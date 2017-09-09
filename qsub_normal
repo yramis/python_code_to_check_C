@@ -1,0 +1,35 @@
+#PBS -l nodes=1:ppn=16,walltime=15:00:00
+#PBS -A crawdad
+#PBS -m a
+#PBS -M rglennsoars@google.com
+#PBS -W group_list=blueridge
+#PBS -q normal_q
+
+source ~/.bashrc
+source activate psi
+
+export PYTHONPATH=$HOME/blueridge/conda/bin
+export MKL_NUM_THREADS=$(($PBS_NP/2))
+export OMP_NUM_THREADS=$(($PBS_NP/2))
+######psi4 path ###############
+export PYTHONPATH=$HOME/blueridge/psi4
+#echo $PBS_NP
+#echo $PBS_MEM
+echo $PBS_WALLTIME
+
+cd $PBS_O_WORKDIR
+python H2O.py ${PBS_WALLTIME} > H2O.${PBS_JOBID}
+
+
+
+#cd $SCRATCH
+#mkdir $PBS_JOBID
+#cp -r $HOME/1h_fft_functional_nanopar\test .
+
+#matlab -nodisplay -r 'Decayratedoubles'> output.${PBS_JOBID}
+#matlab -nodisplay -r 'xa=${PBS_ARRAYID}; Decayratedoubles'> output.${PBS_JOBID}
+#matlab -nodisplay -r 'Decayratedoubles(${PBS_ARRAYID}.00)'> output.${PBS_JOBID}
+
+#cp 1h_fft_functional_nanopar $HOME
+
+exit 0

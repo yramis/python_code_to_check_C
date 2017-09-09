@@ -1,0 +1,29 @@
+#PBS -l nodes=1:ppn=24,walltime=15:00:00
+#PBS -A crawdad
+#PBS -m a
+#PBS -M rglennsoars@google.com
+#PBS -W group_list=newriver
+#PBS -q normal_q
+
+source ~/.bashrc
+#source activate psi
+module load gcc/5.2.0
+module load mkl/11.2.3
+
+export PYTHONPATH=$HOME/blueridge/conda/bin
+export LD_PRELOAD=libmkl_rt.so
+export MKL_NUM_THREADS=$(($PBS_NP/2))
+export OMP_NUM_THREADS=$(($PBS_NP/2))
+
+######psi4 path ###############
+export PYTHONPATH=$HOME/blueridge/psi4
+
+
+
+cd $PBS_O_WORKDIR
+python3 Restart_H2O.py ${PBS_WALLTIME} > H2O.${PBS_JOBID}
+
+
+
+
+exit 0

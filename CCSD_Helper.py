@@ -26,7 +26,7 @@ import csv
 
 class CCSD_Helper(object):
     
-    def __init__(self,psi,ndocc=None):
+    def __init__(self,psi): #ndocc=None):
        
         self.counter = 0
         self.mol = psi4.core.get_active_molecule()
@@ -37,7 +37,7 @@ class CCSD_Helper(object):
         #self.scf_e, self.wfn = psi4.energy('scf', return_wfn = True)
         self.mints = psi4.core.MintsHelper(self.wfn.basisset())
         self.nmo = self.wfn.nmo()
-        self.ccsd_e = psi4.energy('cc2')
+        self.ccsd_e = psi4.energy('ccsd')
         self.S = np.asarray(self.mints.ao_overlap())
         #print mol.nuclear_repulsion_energy()
         #print mol.nuclear_dipole()
@@ -48,7 +48,7 @@ class CCSD_Helper(object):
         A.power(-0.5, 1.e-14)
         self.A = np.asarray(A)
         self.ndocc =int(sum(mol.Z(A) for A in range(mol.natom())) / 2)
-      
+        self.wfn.Ca_subset("AO", "ACTIVE").print_out() 
         self.C = self.wfn.Ca()
         #self.C = self.wfn.Ca_subset("AO", "ALL")
         V = np.asarray(self.mints.ao_potential())
@@ -56,30 +56,21 @@ class CCSD_Helper(object):
         self.H = T + V
         self.occ = slice(2*self.ndocc)
         self.vir = slice(2*self.ndocc, 2*self.nmo)
-        print self.vir
+        print(self.vir)
         #MO energies
         self.eps = np.asarray(self.wfn.epsilon_a()).repeat(2, axis=0)
         #self.TEI_MO = np.asarray(self.mints.mo_spin_eri(self.C, self.C))
-        #self.TEI = self.TEI_MO()
-        self.TEI = np.asarray(self.mints.ao_eri())
+        self.TEI = self.TEI_MO()
+        #self.TEI = np.asarray(self.mints.ao_eri())
+        #self.localize_two_orbitals() 
     
-    
-    
-    
-    
-    
+        
 
 ###############Setup the Fock matrix and TEIs #####################
     def TEI_MO(self, C=None):
         if C is None: C = self.C
         return np.asarray(self.mints.mo_spin_eri(C, C))
            
-    
-    
-
-
-
-
     def GenS12(self): 
         # Update S, transform to MO basis and tile for alpha/beta spin
         S = self.S
@@ -141,7 +132,7 @@ class CCSD_Helper(object):
         MP2_E = self.scf_e + 1/4.0*MP2
         
         if alpha is 'Test':
-            psi4.p4util.compare_values(psi4.energy('mp2'), MP2_E, 10, 'MP2_Energy')
+
             pass
         return self.scf_e, MP2_E, T2
 
@@ -781,12 +772,12 @@ class CCSD_Helper(object):
         
         mua = self.dipole_moment(t1, t2, lam1, lam2, F)
         #mua = dip_xyz_corr
-        print 'mu_x real %.8e' % (mua[0].real)
-        print 'mu_x imag %.8e' % (mua[0].imag)
-        print 'mu_y real %.8e' % (mua[1].real)
-        print 'mu_y imag %.8e' % (mua[1].imag)
-        print 'mu_z real %.8e' % (mua[2].real)
-        print 'mu_z imag %.8e' % (mua[2].imag)
+        print('mu_x real %.8e' % (mua[0].real))
+        print( 'mu_x imag %.8e' % (mua[0].imag))
+        print( 'mu_y real %.8e' % (mua[1].real))
+        print( 'mu_y imag %.8e' % (mua[1].imag))
+        print( 'mu_z real %.8e' % (mua[2].real))
+        print( 'mu_z imag %.8e' % (mua[2].imag))
 #dipolexyz = self.Defd_dipole()
         
         
@@ -1204,7 +1195,7 @@ class CCSD_Helper(object):
                 del errort1[0]
                 del errort2[0]
             return CCSD_E, t1, t2
-    
+
     #a regular iterative solver, Slow, don't use        
     def NO_DIIS_solver(self, t1, t2, F, maxsize, maxiter, E_min):    
         i=0
@@ -1599,20 +1590,31 @@ class CCSD_Helper(object):
         sort_t1 = sorted(t1_tmp, reverse=True)
         for x in range(len(sort_t1)-1):
             
-            if (round(sort_t1[x], 10) ==0e10 or round(sort_t1[x+1], 10) == round(sort_t1[x],10)):
+            if (round(sort_t1[x], 10) ==0e13 or round(sort_t1[x+1], 13) == round(sort_t1[x], 13)):
                  
                 pass
             else:
-                print '\t', ('% 5.10f' %  sort_t1[x])
-        print '\t', ('% 5.10f' %  sort_t1[-1])
+                print('\t', ('% 5.13f' %  sort_t1[x]))
+        print('\t', ('% 5.13f' %  sort_t1[-1]))
 
+    def remove_dup(self, t):
+        s = []
+        for i in t:
+            i = round(i, 10)
+            if i not in s:
+                s.append(i)
+        return s
+    
     def print_T_amp(self, t1, t2):
         sort_t1 = sorted(t1.ravel())
+        sort_t1 = self.remove_dup(sort_t1)
         sort_t2 = sorted(t2.ravel())
-
+        sort_t2 = self.remove_dup(sort_t2)
         print("\n   The largest T1 values:")
         for x in range(len(sort_t1)):
-            if (round(sort_t1[x], 5) ==0e5 or x % 2 or 30< x < 60 ):
+            #if (round(sort_t1[x], 5) ==0e5 or x % 2 or 30< x < 60 ):
+            if (round(sort_t1[x], 5) ==0e5 ):
+
                 pass
             else: 
                 print('\t', ('% 5.10f' %  sort_t1[x]))
@@ -1620,18 +1622,19 @@ class CCSD_Helper(object):
         print("\n   The largest T2 values are:")
 
         for x in range(len(sort_t2)):
-            if (round(sort_t2[x],2) ==0.00 or x % 2 or x > 20):
+            if (round(sort_t2[x],2) ==0e5 ): #or x % 2 or x > 20):
                 pass
             else:
                 print('\t', ('% 5.10f' %  sort_t2[x]))  
                 
     def print_L_amp(self, lam1, lam2):
         sort_lam1 = sorted(-abs(lam1.ravel()))
+        sort_lam1 = self.remove_dup(sort_lam1)
         sort_lam2 = sorted(lam2.ravel())
-
+        sort_lam2 = self.remove_dup(sort_lam2)
         print("\n   The largest lam1 values:")
         for x in range(len(sort_lam1)):
-            if (round(sort_lam1[x], 5) ==0e5 or x % 2 or x >20):
+            if (round(sort_lam1[x], 5) ==0e5):# or x % 2 or x >20):
                 pass
             else: 
                 print('\t', ('% 5.10f' %  sort_lam1[x]))
@@ -1806,6 +1809,35 @@ class CCSD_Helper(object):
         term1 = contract('je,ie->ij', lam1, t1)
         term2 = 0.5*contract('jmea,imea->ij', lam2, t2)
         total = -(term1 + term2)
+
+        #print("t2[R]")
+        #self.print_2(t2.real)
+        #print("t2[I]")
+        #self.print_2(t2.imag)
+
+
+        #print("lam2[R]")
+        #self.print_2(lam2.real)
+        #print("lam2[I]")
+        #self.print_2(lam2.imag)
+
+        #print("lam1[R]")
+        #self.print_2(lam1.real)
+        #print("lam1[I]")
+        #self.print_2(lam1.imag)
+
+
+        #print("t1[R]")
+        #self.print_2(t1.real)
+        #print("t1[I]")
+        #self.print_2(t1.imag)
+
+
+        #print("term2[R]")
+        #self.print_2(term1.real)
+        #print("term2[I]")
+        #self.print_2(term1.imag)
+        
         return total
     
       #Build Doo 
@@ -1895,6 +1927,27 @@ class CCSD_Helper(object):
         pij = self.Dij(t1, t2, lam1, lam2)
         dipolexyz = self.Defd_dipole() 
         
+        #print("pai[R]")
+        #self.print_2(pai.real)
+        #print("pai[I]")
+        #self.print_2(pai.imag)
+
+        #print("pia[R]")
+        #self.print_2(pia.real)
+        #print("pia[I]")
+        #self.print_2(pia.imag)
+
+        #print("pij[R]")
+        #self.print_2(pij.real)
+        #print("pij[I]")
+        #self.print_2(pij.imag)
+
+
+        #print("pab[R]")
+        #self.print_2(pab.real)
+        #print("pab[I]")
+        #self.print_2(pab.imag)
+
         #Build the correlated density matrix
         left_p = np.vstack((pij, pai))
         right_p = np.vstack((pia, pab))
@@ -2317,7 +2370,18 @@ class CCSD_Helper(object):
         #k2 = self.T1eq_rhs_TD(t1 + dt/2.0*k1, t2, F, Vt(t + dt/2.0)) 
         #k2 = self.T1eq_rhs_TD(t1 + dt/2.0*k1, t2, F, Vt(t + dt/2.0))  
         #k3 = self.T1eq_rhs_TD(t1 + dt/2.0*k2, t2, F, Vt(t + dt/2.0))
-        #k4 = self.T1eq_rhs_TD(t1 + dt*k3, t2, F, Vt(t + dt)) 
+        #k4 = self.T1eq_rhs_TD(t1 + dt*k3, t2, F, Vt(t + dt))
+        #print("time: ", t)
+        #test = dt/6.0*(k1 + 2.0*k2 + 2.0*k3 + k4)
+        #print("delta[R]\n")
+        #self.print_2(test.real)
+        #print("delta[I]\n")
+        #self.print_2(test.imag)
+        
+        #print("t1[R]\n")
+        #self.print_2(t1.real)
+        #print("t1[I]\n")
+        #self.print_2(t1.imag)
         return dt/6.0*(k1 + 2.0*k2 + 2.0*k3 + k4)
          
     #T2 Runge-Kutta function 
@@ -2329,7 +2393,15 @@ class CCSD_Helper(object):
         #k1 = self.T2eq_rhs_TD(t1, t2, F, Vt(t))
         #k2 = self.T2eq_rhs_TD(t1, t2 + dt/2.0*k1, F, Vt(t + dt/2.0))  
         #k3 = self.T2eq_rhs_TD(t1, t2 + dt/2.0*k2, F, Vt(t + dt/2.0)) 
-        #k4 = self.T2eq_rhs_TD(t1, t2 + dt*k3,  F, Vt(t + dt)) 
+        #k4 = self.T2eq_rhs_TD(t1, t2 + dt*k3,  F, Vt(t + dt))
+        
+        #test = dt/6.0*(k1 + 2.0*k2 + 2.0*k3 + k4)
+        #print("delta[R]\n")
+        #self.print_2(test.real)
+        #print("delta[I]\n")
+        #self.print_2(test.imag)
+        
+        
         return dt/6.0*(k1 + 2.0*k2 + 2.0*k3 + k4)
                  
     #L1 Runge-Kutta function 
@@ -2360,35 +2432,58 @@ class CCSD_Helper(object):
     ####Time propagator#############
     def Runge_Kutta_solver(self, F, t1, t2, lam1, lam2, w0, A, t0, tf, dt, timeout, precs, restart=None):
         #Setup Pandas Data and time evolution
-       
+        
         data =  pd.DataFrame( columns = ('time', 'mu_real', 'mu_imag')) 
         timing =  pd.DataFrame( columns = ('total','t1', 't2', 'l1','l2')) 
         
         #        ##Electric field, it is in the z-direction for now      
         def Vt(t):
+            w0 = 0.968635
+            A = 1
             mu = self.Defd_dipole()
-
-            return -A*mu[2] #*np.sin(2*np.pi*w0*t)*np.exp(-t*t/5.0)   
-        t = t0
+            pi = np.cos(-1)
+            #print(t, A*cmath.exp(1j*w0*2.0*np.pi*t))
+            #print("E[R]",)
+            return -A*mu[2]*cmath.exp(1j*w0*2*np.pi*t) #*np.sin(2*np.pi*w0*t)*np.exp(-t*t/5.0)
+        t = 0.0000
+        dt = 0.0001
         i=0
         start = time.time()
         m=1.0
+        precs=15
         #Do the time propagation
+        #print("time: ", t)
+        #print("F[R]\n")
+        #self.print_2(F.real + Vt(t).real)
+        #print("F[I]\n")
+        #self.print_2(F.imag + Vt(t).imag)
+        #self.check_T1_T2_L1_L2(t1, t2, lam1, lam2, F)
+        mua = self.dipole_moment(t1, t2, lam1, lam2, F)
+        #print("t1[R]\n")
+        #self.print_2(t1.real)
+        #print("t1[I]\n")
+        #self.print_2(t1.imag)
+        
+        
+        print("time \t\t mu_z_real \t\t mu_z_real")
+        print(round(t, 4), '\t', mua[2].real, '\t', mua[2].imag)
         while t < tf:
             L1min = np.around(lam1, decimals=precs) 
             L2min = np.around(lam2, decimals=precs) 
-            dt = dt/m
+            i += 1
+            t += dt
+            
+            #print("time: ", t, "Field", A*cmath.exp(1j*w0*2.0*np.pi*t))
             itertime_t1 = itertime_t2 = 0
-            for n in range(int(m)):
-                t1min = np.around(t1, decimals=precs) 
-                t2min = np.around(t2, decimals=precs) 
-                itertime = time.time()
-                dt1 = -1j*self.ft1(t, dt, t1, t2, F, Vt) #Runge-Kutta
-                itertime_t1 = -itertime + time.time()
-                itertime = time.time()
-                dt2 = -1j*self.ft2(t, dt, t1, t2, F, Vt) #Runge-Kutta
-                itertime_t2 = -itertime + time.time()
-            dt = m*dt
+            
+            t1min = np.around(t1.copy(), decimals=precs)
+            t2min = np.around(t2.copy(), decimals=precs)
+            itertime = time.time()
+            dt1 = -1j*self.ft1(t, dt, t1, t2, F, Vt) #Runge-Kutta
+            itertime_t1 = -itertime + time.time()
+            itertime = time.time()
+            dt2 = -1j*self.ft2(t, dt, t1, t2, F, Vt) #Runge-Kutta
+            itertime_t2 = -itertime + time.time()
             itertime = time.time()
             dL1 = 1j*self.fL1(t, dt, t1, t2, lam1, lam2, F, Vt) #Runge-Kutta
             itertime_l1 = -itertime  + time.time()
@@ -2397,16 +2492,40 @@ class CCSD_Helper(object):
             itertime_l2 = -itertime  + time.time()
             total = itertime_t1 + itertime_t2 + itertime_l1 + itertime_l2
             timing.loc[i] = [total, itertime_t1, itertime_t2, itertime_l1, itertime_l2 ]
+            
+            #print("t2[R]\n")
+            #self.print_2(t2.real)
+            #print("t2[I]\n")
+            #self.print_2(t2.imag)
+            
+            
             t1 = t1min + dt1
-            t2 = t2min + dt2
-            lam1 = L1min + dL1
-            lam2 = L2min + dL2
-            i += 1
-            t =t0 + i*dt
+            t2 = (t2min + dt2)
+            lam1 = (L1min + dL1)
+            lam2 = (L2min + dL2)
+            #print("t2 + delta_t2[R]\n")
+            #self.print_2(t2.real)
+            #print("t2 + delta_t2[I]\n")
+            #self.print_2(t2.imag)
+            
+            #print("delta_L1[R]\n")
+            #self.print_2(lam1.real)
+            #print("delta_L1[I]\n")
+            #self.print_2(lam1.imag)
+            
+            
+            
+            #print("t2 + delta_t2[R]\n")
+            #self.print_2(lam2.real)
+            #print("t2 + delta_t2[I]\n")
+            #self.print_2(lam2.imag)
             stop = time.time()-start
+            
+            #self.check_T1_T2_L1_L2(t1, t2, lam1, lam2, F)
+            #mua = self.dipole_moment(t1, t2, lam1, lam2, F)
             mua = self.dipole_moment(t1, t2, lam1, lam2, F)
             data.loc[i] = [t, mua[2].real, mua[2].imag  ]
-            print(t, mua[2])
+            print(round(t, 4), '\t', mua[2].real, '\t', mua[2].imag)
             
             if abs(stop)>0.9*timeout*60.0:
                 
@@ -2431,150 +2550,5 @@ class CCSD_Helper(object):
         #self.Save_data(F, t1, t2, lam1, lam2, data, timing, restart)
         #self.Save_data(F, t1min, t2min, L1min, L2min, data, timing, restart)
 #self.Save_parameters(w0, A, t0, t-dt, dt, precs, t1.shape[0], t1.shape[1])
-
-
-
-
-
-########################################################################
-#
-#
-#          CC2-Runge_Kutta
-#
-#
-#
-########################################################################3
-    #T2 Runge-Kutta function 
-    def ft2_CC2(self, t, dt, t1, t2, F, Vt):
-        k1 = self.T2eq_rhs_CC2(t1, t2, F + Vt(t))
-        k2 = self.T2eq_rhs_CC2(t1, t2 + dt/2.0*k1, F + Vt(t + dt/2.0))  
-        k3 = self.T2eq_rhs_CC2(t1, t2 + dt/2.0*k2, F + Vt(t + dt/2.0)) 
-        k4 = self.T2eq_rhs_CC2(t1, t2 + dt*k3,  F + Vt(t + dt)) 
-        #k1 = self.T2eq_rhs_TD(t1, t2, F, Vt(t))
-        #k2 = self.T2eq_rhs_TD(t1, t2 + dt/2.0*k1, F, Vt(t + dt/2.0))  
-        #k3 = self.T2eq_rhs_TD(t1, t2 + dt/2.0*k2, F, Vt(t + dt/2.0)) 
-        #k4 = self.T2eq_rhs_TD(t1, t2 + dt*k3,  F, Vt(t + dt)) 
-        return dt/6.0*(k1 + 2.0*k2 + 2.0*k3 + k4)
- 
-    def Runge_Kutta_solver_CC2(self, F, t1, t2, lam1, lam2, w0, A, t0, tf, dt, timeout, precs, restart=None):
-        #Setup Pandas Data and time evolution
-       
-        data =  pd.DataFrame( columns = ('time', 'mu_real', 'mu_imag')) 
-        timing =  pd.DataFrame( columns = ('total','t1', 't2', 'l1','l2')) 
-        
-        #        ##Electric field, it is in the z-direction for now      
-        def Vt(t):
-            mu = self.Defd_dipole()
-
-            return -A*mu[2] #*np.sin(2*np.pi*w0*t)*np.exp(-t*t/5.0)   
-        t = t0
-        i=0
-        start = time.time()
-        m=1.0
-        #Do the time propagation
-        while t < tf:
-            L1min = np.around(lam1, decimals=precs) 
-            L2min = np.around(lam2, decimals=precs) 
-            dt = dt/m
-            itertime_t1 = itertime_t2 = 0
-            for n in range(int(m)):
-                t1min = np.around(t1, decimals=precs) 
-                t2min = np.around(t2, decimals=precs) 
-                itertime = time.time()
-                dt1 = -1j*self.ft1(t, dt, t1, t2, F, Vt) #Runge-Kutta
-                itertime_t1 = -itertime + time.time()
-                itertime = time.time()
-                dt2 = -1j*self.ft2_CC2(t, dt, t1, t2, F, Vt) #Runge-Kutta
-                itertime_t2 = -itertime + time.time()
-            dt = m*dt
-            itertime = time.time()
-            dL1 = 1j*self.fL1(t, dt, t1, t2, lam1, lam2, F, Vt) #Runge-Kutta
-            itertime_l1 = -itertime  + time.time()
-            itertime = time.time()
-            dL2 = 1j*self.fL2(t, dt, t1, t2, lam1, lam2, F, Vt)  #Runge-Kutta
-            itertime_l2 = -itertime  + time.time()
-            total = itertime_t1 + itertime_t2 + itertime_l1 + itertime_l2
-            timing.loc[i] = [total, itertime_t1, itertime_t2, itertime_l1, itertime_l2 ]
-            t1 = t1min + dt1
-            t2 = t2min + dt2
-            lam1 = L1min + dL1
-            lam2 = L2min + dL2
-            i += 1
-            t =t0 + i*dt
-            stop = time.time()-start
-            mua = self.dipole_moment(t1, t2, lam1, lam2, F)
-            data.loc[i] = [t, mua[2].real, mua[2].imag  ]
-            print(t, mua[2])
-            
-            if abs(stop)>0.9*timeout*60.0:
-                
-                #self.Save_data(F, t1, t2, lam1, lam2, data, timing, restart)
-                self.Save_data(F, t1min, t2min, L1min, L2min, data, timing, precs, restart)
-                self.Save_parameters(w0, A, t0, t-dt, dt, precs, t1.shape[0], t1.shape[1])
-    
-                break
-            #Calculate the dipole moment using the density matrix
-
-            
-            if abs(mua[2].real) > 100:
-                #self.Save_data(F, t1, t2, lam1, lam2, data, timing, restart)
-                self.Save_data(F, t1min, t2min, L1min, L2min, data, timing, precs, restart)
-                self.Save_parameters(w0, A, t0, t-dt, dt, precs, t1.shape[0], t1.shape[1])
-                break
-            
-        stop = time.time()
-        print("total time non-adapative step:", stop-start)
-        print("total steps:", i)
-        print("step-time:", (stop-start)/i)
- 
-
-
-
-
-#
-#rhs_L2(int L_irr, double E0_Real, double E0_Imag)
-
-
-#L2_plus_delta_L2(int L_irr)
-
-
-
-#init_io_L2()
-#exit_io_L2()
-#init_io_onepdm()
-#exit_io_onepdm()
-
-
-#RK_TO_RHS_io_L2(int L_irr)
-
-#RHS_to_RK_io_L2(int L_irr)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
