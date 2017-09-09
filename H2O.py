@@ -1,7 +1,7 @@
 import sys
 sys.path.insert(1,'./..')
 import psi4 as psi4
-from CCSD_Calculator import *
+from CC_Calculator import *
 
 timeout = float(sys.argv[1])/60
 print("time in minutes is:", timeout)
@@ -14,19 +14,28 @@ symmetry c1
 """)
 
 opt_dict = {
-  "basis": 'sto-3g',
+  "basis": "sto-3g",
   "reference": "RHF",
   "print_MOs" : "True",
   "mp2_type": "conv",
   "scf_type": "pk",
   "roots_per_irrep": [40],
-  'e_convergence': 1e-14,
-  'r_convergence': 1e-14
+  "e_convergence": 1e-14,
+  "r_convergence": 1e-14
 }
 psi4.set_options(opt_dict)
 psi4.properties('ccsd', properties=['dipole','analyze'])
+#psi4.properties('cc2', properties=['dipole','analyze'])
 
-mol= CCSD_Calculator(psi4)
+
+#Start parameters
+w0 = 0.968635 #frequency of the oscillation
+A = 0.005#the amplitude of the electric field
+t0 = 0.0000 #the start time
+dt = 0.0001 #time step
+precs = 15 #precision of the t1, t2, l1, l2 amplitudes
+
+mol= CC_Calculator(psi4, w0, A, t0, dt, precs)
 #Time-dependent CC2 calculation
 mol.TDCC2(timeout)
 #Time-dependent CCSD calculation

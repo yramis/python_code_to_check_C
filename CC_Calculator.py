@@ -1,18 +1,18 @@
 # -*- coding: utf-8 -*-
-# #################################################################
+# #####################################################################
 #
 #
 #                            Created by: Rachel Glenn
 #                                 Date: 12/14/2016
-#       This is the driver for CC2 or CCSD_Helper and Runge_Kutta to calculate
-#       the time dependent dipole moment.
+#This is the driver for CC2 or CCSD_Helper and Runge_Kutta to calculate
+#the time dependent dipole moment.
 #
-#       First it calculates the converged t1, t2,
-#       Second the lam1, lam2
-#       It uses the converged t1, t2, lam1, lam2 to calculate the real-time
-#       single-electron density matrix
+# First it calculates the converged t1, t2,
+# Second the lam1, lam2
+# It uses the converged t1, t2, lam1, lam2 to calculate the real-time
+# single-electron density matrix
 #
-#####################################################################
+########################################################################
 import sys
 sys.path.insert(0,'./..')
 import psi4 as psi4
@@ -23,14 +23,22 @@ sys.path.append('/home/rglenn/newriver/buildpython/pandas')
 
 ########################################################
 #                 Setup
-#
 ########################################################
-class CCSD_Calculator(object):
+class CC_Calculator(object):
     
-    def __init__(self,psi,ndocc=None):
+    def __init__(self, psi, w0, A, t0, dt, precs):
         self.mol = CCSD_Helper(psi)
         mol = self.mol
-        self.ndocc = mol.ndocc  
+        self.ndocc = mol.ndocc
+    
+        #Start parameters
+        self.w0 = w0 #frequency of the oscillation
+        self.A = A #the amplitude of the electric field
+        self.t0 = t0 #the start time
+        self.tf = 10.1 #the stop time, the actual stop time is governed by the timelength of the job
+                 #Unless it completes enough steps to get to tf first.
+        self.dt = dt #time step
+        self.precs = precs #precision of the t1, t2, l1, l2 amplitudes
             
     def test_MP2(self):
         mol = self.mol
@@ -38,12 +46,8 @@ class CCSD_Calculator(object):
         return MP2
 
 ##############################################
-#
-#
 #              CCSD--Calculations--
-#
-#
-##################################################
+##############################################
 
     def TDCCSD(self, timeout):#T1 equation
         mol = self.mol
@@ -54,13 +58,9 @@ class CCSD_Calculator(object):
         o = 2*ndocc
         psienergy = psi4.energy('CCSD')
         
-############################################## 
-#
-#
+##############################################
 #           t1 and t2 Amplitudes (CCSD):
-#
-#
-##################################################       
+##############################################
 
         #initialize t1 and t2
         scf, MP2, t2 = mol.MP2_E('Test')
@@ -80,13 +80,9 @@ class CCSD_Calculator(object):
         
         psi4.driver.p4util.compare_values(psi4.energy('CCSD'), CC2_E+scf, 10, 'CCSD Energy')
         
-############################################## 
-#
-#
+##############################################
 #           lam1 and lam2 Amplitudes (CCSD):
-#
-#
-##################################################
+##############################################
 
         maxiter = 30
         E_min = 1e-15 # minimum energy to match
@@ -99,28 +95,13 @@ class CCSD_Calculator(object):
         mol.print_L_amp(lam1, lam2)
 
 ##############################################
-#
-#
 #           Time-dependent dipole matrix(CCSD):
-#
-#
 ##############################################
-        #Start parameters
-        w0 = 0.968635 #frequency of the oscillation
-        A = 0.005#the amplitude of the electric field
-        t0 = 0.0000 #the start time
-        tf = 0.1 #the stop time, the actual stop time is governed by the timelength of the job
-                     #Unless it completes enough steps to get to tf first. 
-        dt = 0.0001 #time step
-        precs = 15 #precision of the t1, t2, l1, l2 amplitudes
-        mol.Runge_Kutta_solver(F, t1, t2, lam1, lam2, w0, A, t0, tf, dt, timeout, precs)
+        mol.Runge_Kutta_solver(F, t1, t2, lam1, lam2, self.w0, \
+        self.A, self.t0, self.tf, self.dt, timeout, self.precs)
 
 ##############################################
-#
-#
 #              CC2--Calculations--
-#
-#
 ##############################################
     def TDCC2(self, timeout):#T1 equation
         mol = self.mol
@@ -131,13 +112,9 @@ class CCSD_Calculator(object):
         o = 2*ndocc
         psienergy = psi4.energy('CC2')
 
-############################################## 
-#
-#
+##############################################
 #           t1 and t2 Amplitudes (CC2):
-#
-#
-###############################################
+##############################################
         #initialize t1 and t2
         scf, MP2, t2 = mol.MP2_E('Test')
         t1 = np.zeros( shape=(o, v), dtype=np.longdouble) 
@@ -155,12 +132,8 @@ class CCSD_Calculator(object):
         print("difference between psi4 and plugin=", psienergy.real - (CC2_E + scf))
         mol.print_T_amp(t1, t2)
         psi4.driver.p4util.compare_values(psi4.energy('CC2'), CC2_E+scf, 10, 'CCSD Energy')
-############################################## 
-#
-#
+##############################################
 #           lam1 and lam2 Amplitudes (CC2):
-#
-#
 ##############################################
         maxiter = 30
         E_min = 1e-15 # minimum energy to match
@@ -171,22 +144,10 @@ class CCSD_Calculator(object):
         mol.print_L_amp(lam1, lam2)
 
 ##############################################
-#
-#
 #           Time-dependent dipole matrix(CC2):
-#
-#
 ##############################################
-
-        #Start parameters
-        w0 = 0.968635 #frequency of the oscillation
-        A = 0.005#the amplitude of the electric field
-        t0 = 0.0000 #the start time
-        tf = 10.1 #the stop time, the actual stop time is governed by the timelength of the job
-                 #Unless it completes enough steps to get to tf first.
-        dt = 0.0001 #time step
-        precs = 15 #precision of the t1, t2, l1, l2 amplitudes
-        mol_CC2.Runge_Kutta_solver_CC2(F, t1, t2, lam1, lam2, w0, A, t0, tf, dt, timeout, precs)
+        mol_CC2.Runge_Kutta_solver_CC2(F, t1, t2, lam1, lam2, \
+        self.w0, self.A, self.t0, self.tf, self.dt,timeout, self.precs)
 
 
 
