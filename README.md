@@ -12,7 +12,7 @@ EOM-CC2 oscillator_strength calculation.
 python H2O.py <time_to_run>
 ```
 
-where <time_to_run> is the time-length in hours that the simulation will run for. I recommend using
+where <time_to_run> is the time-length in seconds that the simulation will run for. I recommend using
 
 ```
 python H2O.py <time_to_run> > <output.dat>
