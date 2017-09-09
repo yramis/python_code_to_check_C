@@ -14,9 +14,6 @@ from copy import deepcopy
 import numpy as np
 import cmath
 import pandas as pd
-#sys.path.append(os.environ['HOME']+'/Desktop/workspace/psi411/psi4/objdir/stage/usr/local/lib')
-#sys.path.append('/home/rglenn/blueridge/buildpsi/lib')
-#sys.path.append('/home/rglenn/newriver/buildpython/pandas/pandas')
 from pandas import *
 import psi4 as psi4
 sys.path.append(os.environ['HOME']+'/miniconda2/lib/python2.7/site-packages')
