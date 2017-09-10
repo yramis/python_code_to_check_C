@@ -1,8 +1,8 @@
 # python_code_to_check_C
 
-This is a Time-dependent Coupled Cluster (CCSD or CC2) calculator. 
+This is a time-dependent Coupled Cluster (CCSD or CC2) calculator. 
 The converged CCSD and CC2 values have been checked against psi4. 
-All individual T1, T2, L1, and L2 intermediate terms for CCSD and CC2 have been checked against code pulled psi4. 
+All individual T1, T2, L1, and L2 intermediate terms for CCSD and CC2 have been checked against code pulled from psi4. 
 The Fourier transform of the time-dependent simulation has peaks that correspond to an 
 EOM-CC2 oscillator_strength calculation. 
 
