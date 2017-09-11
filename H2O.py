@@ -1,70 +1,42 @@
 import sys
-import os
 sys.path.insert(1,'./..')
-#sys.path.append(os.environ['HOME']+'/Desktop/workspace/psi411/psi4/objdir/stage/usr/local/lib')
-#sys.path.append('/usr/local/psi4/bin')
-#sys.path.append('/usr/local/psi4/lib')
-#sys.path.append(os.environ['HOME']+'/miniconda2/lib/python2.7/site-packages')
-#sys.path.append('/home/rglenn/blueridge/buildpsi/lib')
-import cmath
 import psi4 as psi4
-import csv
-#from opt_einsum import contract
-from CCSD_Calculator import *
-#if os.environ['SYSNAME']=='blueridge':
-psi4.set_memory("5 GB")
-#psi4.core.set_memory(int(62e9), False) #blueridge
-#psi4.core.set_memory(int(3.5e9), False) 
+from CC_Calculator import *
 
 timeout = float(sys.argv[1])/60
 print("time in minutes is:", timeout)
-
-
-#psi4.core.set_memory(int(100.e6), False) #my laptop
-#psi4.core.clean()
 numpy_memory = 2
-#psi4.core.clean()
 mol = psi4.geometry("""
 O
-H 1 0.9
-H 1 0.9 2 104.5
+H 1 1.1
+H 1 1.1 2 104
 symmetry c1
 """)
-#mol = psi4.geometry(molstring)
-
-#psi4.set_options({'basis': '3-21g',
-#                  'scf_type': 'pk',
-#                  'mp2_type': 'conv',
-#                  'freeze_core': 'false',
-#                  'e_convergence': 1e-14,
-#                  'd_convergence': 1e-14})
-
-
 
 opt_dict = {
-  "basis": 'sto-3g',
+  "basis": "sto-3g",
   "reference": "RHF",
+  "print_MOs" : "True",
   "mp2_type": "conv",
-  "roots_per_irrep": [40],
   "scf_type": "pk",
-  'e_convergence': 1e-14,
-  'r_convergence': 1e-14
+  "roots_per_irrep": [40],
+  "e_convergence": 1e-14,
+  "r_convergence": 1e-14
 }
-#'6-31g'
-#'sto-3g'
 psi4.set_options(opt_dict)
-#psi4.property('ccsd', properties=['dipole'])
-#psi4.property('eom-cc2', properties=['oscillator_strength'])
-psi4.core.set_output_file('output.dat', False)
+psi4.properties('ccsd', properties=['dipole','analyze'])
+#psi4.properties('cc2', properties=['dipole','analyze'])
 
-pseudo = -0.068888224492060 #H2O sto-3g
-pseudo = -0.140858583055215 #'3-21g
-pseudo = -0.148311233718836 #'6-31g
 
-mol= CCSD_Calculator(psi4)
+#Start parameters
+#w0 frequency of the oscillation
+#A = 0.005#the amplitude of the electric field
+#t0 = 0.0000 #the start time
+#dt = 0.0001 #time step
+#precs = 15 #precision of the t1, t2, l1, l2 amplitudes
 
-#Caculate the MP2 Energy
-#mol.test_MP2()
-#Converged T1, T2, L1, L2 amplitudes
-mol.TDCCSD(pseudo, timeout)
-
+mol = CC_Calculator(psi4, w0=0.968635,A=0.005,t0=0.0,dt=0.0001,precs=15)
+#Time-dependent CC2 calculation
+#mol.TDCC2(timeout)
+#Time-dependent CCSD calculation
+mol.TDCCSD(timeout)
