@@ -37,6 +37,6 @@ psi4.properties('ccsd', properties=['dipole','analyze'])
 
 mol = CC_Calculator(psi4, w0=0.968635,A=0.005,t0=0.0,dt=0.0001,precs=15)
 #Time-dependent CC2 calculation
-#mol.TDCC2(timeout)
+#mol.TDCC(timeout, 'CC2')
 #Time-dependent CCSD calculation
-mol.TDCCSD(timeout)
+mol.TDCC(timeout, 'CCSD')

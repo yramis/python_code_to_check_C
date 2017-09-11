@@ -48,6 +48,20 @@ class CC_Calculator(object):
         mol = self.mol
         scf, MP2, T2 = mol.MP2_E('Test')
         return MP2
+
+##############################################
+#  Time-dependent dipole matrix(CC2/CCSD):
+##############################################
+    
+    def TDCC(self, timeout, CCSD_or_CC2):
+        if CCSD_or_CC2 == 'CC2':
+            self.TDCC2(timeout)
+        elif CCSD_or_CC2 == 'CCSD':
+            self.TDCCSD(timeout)
+        else:
+            print("Error in specifying whether it is a CCSD or CC2 calculation")
+            print("Correct format is:\nmol.TDCC(stop_time, CCSD)\nwhere CCSD='CCSD' or 'CC2'")
+    
     
 ##############################################
 #  RESTART Time-dependent dipole matrix(CC2/CCSD):
