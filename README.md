@@ -75,13 +75,13 @@ mol= CC_Calculator(psi4, w0, A, t0, dt, precs)
 A CCSD time-dependent calculation is initiated by using the following command:
 
 ```
-mol.TDCCSD(<time_to_run>)
+mol.TDCC(<time_to_run>, 'CCSD')
 ```
 
 and a CC2 timed-dependent calculation is initiated by using the following command:
 
 ```
-mol.TDCC2(<time_to_run>)
+mol.TDCC(<time_to_run>, 'CC2')
 ```
 
 ## Restarting the simulation from time, t != 0:
