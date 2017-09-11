@@ -64,7 +64,7 @@ t0 - Start-time of the simulation.
 
 precs - The accuracy of the numerical solver.
 
-## Switching between CCSD and CC2 for a simulation at t=0:
+## Usage and Switching between CCSD and CC2 for a simulation at t=0:
 
 The instance for either a CCSD or CC2 calculation is:
 
