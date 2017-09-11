@@ -54,13 +54,13 @@ lam2_imag.dat
 
 The Electric Field Function is defined inside the Runge_Kutta defined function. 
 
-w0 - Frequency of the Electric Field.
+w0 - Frequency of the Electric Field (a.u).
 
-A  - Amplitude of the Electric Field.
+A  - Amplitude of the Electric Field (a.u).
 
-dt - Time-step of the numeric solver.
+dt - Time-step of the numeric solver (a.u).
 
-t0 - Start-time of the simulation.
+t0 - Start-time of the simulation (a.u).
 
 precs - The accuracy of the numerical solver.
 
@@ -69,7 +69,7 @@ precs - The accuracy of the numerical solver.
 The instance for either a CCSD or CC2 calculation is:
 
 ```
-mol= CC_Calculator(psi4, w0, A, t0, dt, precs)
+mol= CC_Calculator(psi4, w0=0.923, A=0.002, t0=0.0, dt=0.001, precs=15)
 ```
 
 A CCSD time-dependent calculation is initiated by using the following command:
