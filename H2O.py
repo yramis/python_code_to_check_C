@@ -29,14 +29,14 @@ psi4.properties('ccsd', properties=['dipole','analyze'])
 
 
 #Start parameters
-w0 = 0.968635 #frequency of the oscillation
-A = 0.005#the amplitude of the electric field
-t0 = 0.0000 #the start time
-dt = 0.0001 #time step
-precs = 15 #precision of the t1, t2, l1, l2 amplitudes
+#w0 frequency of the oscillation
+#A = 0.005#the amplitude of the electric field
+#t0 = 0.0000 #the start time
+#dt = 0.0001 #time step
+#precs = 15 #precision of the t1, t2, l1, l2 amplitudes
 
-mol= CC_Calculator(psi4, w0, A, t0, dt, precs)
+mol = CC_Calculator(psi4, w0=0.968635,A=0.005,t0=0.0,dt=0.0001,precs=15)
 #Time-dependent CC2 calculation
-mol.TDCC2(timeout)
+#mol.TDCC2(timeout)
 #Time-dependent CCSD calculation
-#mol.TDCCSD(timeout)
+mol.TDCCSD(timeout)

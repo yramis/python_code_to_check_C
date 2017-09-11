@@ -1099,9 +1099,9 @@ class CCSD_Helper(object):
 #
 #
 ###########################################################
-    def Save_parameters(self, w0, A, t0, t, dt, precs, i, a):
-        save_dat =  pd.DataFrame( columns = ( 'w0', 'A', 't0','dt','precs', 'i', 'a')) 
-        save_dat.loc[1] = [w0, A, t, dt, precs, i, a]
+    def Save_parameters(self, w0, A, t0, t, dt, precs, i, a, CCSD_or_CC2):
+        save_dat =  pd.DataFrame( columns = ( 'w0', 'A', 't0','dt','precs', 'i', 'a','CCSD_or_CC2'))
+        save_dat.loc[1] = [w0, A, t, dt, precs, i, a, CCSD_or_CC2]
         save_dat.to_csv('Parameters.csv',float_format='%.10f')
         
     def write_2data(self, F, FileName, precs):
@@ -1241,13 +1241,13 @@ class CCSD_Helper(object):
             
             if abs(stop)>0.9*timeout*60.0:
                 self.Save_data(F, t1min, t2min, L1min, L2min, data, timing, precs, restart)
-                self.Save_parameters(w0, A, t0, t-dt, dt, precs, t1.shape[0], t1.shape[1])
+                self.Save_parameters(w0, A, t0, t-dt, dt, precs, t1.shape[0], t1.shape[1], 'CCSD')
     
                 break
             #Calculate the dipole moment using the density matrix
             if abs(mua[2].real) > 100:
                 self.Save_data(F, t1min, t2min, L1min, L2min, data, timing, precs, restart)
-                self.Save_parameters(w0, A, t0, t-dt, dt, precs, t1.shape[0], t1.shape[1])
+                self.Save_parameters(w0, A, t0, t-dt, dt, precs, t1.shape[0], t1.shape[1], 'CCSD')
                 break
             
         stop = time.time()

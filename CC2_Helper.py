@@ -486,12 +486,12 @@ class CC2_Helper(CCSD_Helper):
             
             if abs(stop)>0.9*timeout*60.0:
                 self.Save_data(F, t1min, t2min, L1min, L2min, data, timing, precs, restart)
-                self.Save_parameters(w0, A, t0, t-dt, dt, precs, t1.shape[0], t1.shape[1])
+                self.Save_parameters(w0, A, t0, t-dt, dt, precs, t1.shape[0], t1.shape[1], 'CC2')
                 break
             #Calculate the dipole moment using the density matrix
             if abs(mua[2].real) > 100:
                 self.Save_data(F, t1min, t2min, L1min, L2min, data, timing, precs, restart)
-                self.Save_parameters(w0, A, t0, t-dt, dt, precs, t1.shape[0], t1.shape[1])
+                self.Save_parameters(w0, A, t0, t-dt, dt, precs, t1.shape[0], t1.shape[1], 'CC2')
                 break
             
         stop = time.time()
