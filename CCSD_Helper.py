@@ -223,7 +223,7 @@ class CCSD_Helper(object):
         total = term1 + term2 + term4
         return total 
      
-    #Build Wvvvv for t2 terms                                                                                                                                                                                                                                                                     
+    #Build Wvvvv for t2 terms
     def Wabef(self, t1, t2, F):
         v = self.vir
         o = self.occ
